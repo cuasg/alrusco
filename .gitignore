@@ -1,14 +1,55 @@
-node_modules
-npm-debug.log*
-pnpm-lock.yaml
-package-lock.json
-yarn.lock
+# --- Dependencies ---
+node_modules/
 
+# --- Environment & secrets ---
+# Never commit real credentials; do commit `.env.example` as a template.
 .env
 .env.*
+!.env.example
 
-dist
-frontend-dist
+# --- Build outputs ---
+dist/
+build/
+frontend-dist/
+backend/dist/
+*.tsbuildinfo
 
-data
+# --- Local runtime data (SQLite DB, uploads, etc.) ---
+data/
 
+# --- Logs & debug ---
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# --- Tests & coverage ---
+coverage/
+.nyc_output/
+
+# --- Tooling caches ---
+.vite/
+.cache/
+.turbo/
+*.pem
+
+# --- OS junk ---
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# --- Editors ---
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+*.swo
+*~
+
+# --- Misc local ---
+*.local
+.tmp/
+temp/
