@@ -553,6 +553,29 @@ body {
   gap: 20px;
 }
 
+/* Projects index: match photos album grid — 1 col mobile, more on wider screens */
+.projects-page .cards-grid {
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 520px) {
+  .projects-page .cards-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 840px) {
+  .projects-page .cards-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1100px) {
+  .projects-page .cards-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
 .card {
   background: radial-gradient(circle at top left, #020617, #020617 40%, #030712);
   border-radius: 16px;
@@ -1113,8 +1136,15 @@ body.fb-lightbox-open {
 
 .fb-photos-page .fb-photos-shell,
 .fb-collection-page .fb-photos-shell {
-  max-width: 920px;
+  max-width: 100%;
   margin: 0 auto;
+}
+
+/* Photos index: use full main column width on large screens for multi-column album grids */
+@media (min-width: 640px) {
+  .fb-photos-page .fb-photos-shell {
+    max-width: min(1120px, 100%);
+  }
 }
 
 .fb-collection-page .fb-photos-shell {
@@ -1203,10 +1233,29 @@ body.fb-lightbox-open {
   color: #e5e7eb;
 }
 
+/* Photos: 1 col on small phones, more columns as viewport grows */
 .fb-album-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  grid-template-columns: 1fr;
   gap: 16px;
+}
+
+@media (min-width: 520px) {
+  .fb-album-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 840px) {
+  .fb-album-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1100px) {
+  .fb-album-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
 }
 
 .fb-album-card {
