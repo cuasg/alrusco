@@ -44,16 +44,32 @@ app.use(
       : {
           directives: {
             defaultSrc: ["'self'"],
-            scriptSrc: ["'self'", "https://www.webglearth.com"],
+            // WebGL Earth’s api.js pulls in Google Analytics; allow it or the globe fails to init.
+            scriptSrc: [
+              "'self'",
+              "https://www.webglearth.com",
+              "https://www.google-analytics.com",
+              "https://www.googletagmanager.com",
+            ],
             styleSrc: ["'self'", "'unsafe-inline'"],
             imgSrc: [
               "'self'",
               "https://cdn.simpleicons.org",
               "https://tile.openstreetmap.org",
+              "https://www.google-analytics.com",
+              "https://www.googletagmanager.com",
               "data:",
               "blob:",
             ],
-            connectSrc: ["'self'", "https://tile.openstreetmap.org"],
+            connectSrc: [
+              "'self'",
+              "https://tile.openstreetmap.org",
+              "https://www.google-analytics.com",
+              "https://*.google-analytics.com",
+              "https://analytics.google.com",
+              "https://*.analytics.google.com",
+              "https://stats.g.doubleclick.net",
+            ],
             fontSrc: ["'self'"],
             objectSrc: ["'none'"],
             baseUri: ["'self'"],

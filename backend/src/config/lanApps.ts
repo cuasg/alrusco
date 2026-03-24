@@ -13,6 +13,12 @@ export const lanApps: LanApp[] = [
     internalUrl: "https://homeassistant.alrusco.com",
   },
   {
+    id: "unraid",
+    name: "Unraid",
+    description: "NAS dashboard, Docker, and array management",
+    internalUrl: "https://unraid.alrusco.com",
+  },
+  {
     id: "plant-monitor",
     name: "Plant monitor",
     description: "Plant health monitoring",

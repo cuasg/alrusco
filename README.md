@@ -135,7 +135,7 @@ If you terminate TLS in Nginx, Caddy, or Nginx Proxy Manager, point traffic to t
 
 - **Secrets:** Strong `JWT_SECRET`; `CREDENTIALS_ENCRYPTION_KEY` if you store a GitHub PAT in Settings; never commit `.env`.
 - **Bootstrap:** Keep `ALLOW_BOOTSTRAP` unset except for the very first admin user on a new deploy.
-- **Headers:** Helmet is enabled with a **Content-Security-Policy** tuned for this SPA (same-origin scripts/assets, WebGL Earth + OSM tiles, dashboard Simple Icons CDN, `blob:`/`data:` where needed). Set **`CSP_DISABLE=true`** only if you must debug a blocked resource. Optionally set **`ENABLE_HSTS=true`** once HTTPS is correct end-to-end.
+- **Headers:** Helmet is enabled with a **Content-Security-Policy** tuned for this SPA (same-origin scripts/assets, WebGL Earth + OSM tiles, dashboard Simple Icons CDN, and **Google Analytics domains** that WebGL Earth’s script loads, `blob:`/`data:` where needed). Set **`CSP_DISABLE=true`** only if you must debug a blocked resource. Optionally set **`ENABLE_HSTS=true`** once HTTPS is correct end-to-end.
 - **Rich text:** User-editable HTML (projects body, descriptions, home copy) is sanitized with **sanitize-html** (allow-list tags/attributes; safe link schemes).
 - **Uploads:** JPEG/PNG/WebP/GIF/HEIC only; content is checked with **sharp** (blocks mismatched / hostile types such as SVG-as-image).
 - **Weather:** Use **`WEATHER_FIXED_LOCATION=true`** so anonymous clients can’t pick arbitrary coordinates for your API key.

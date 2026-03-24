@@ -16,6 +16,12 @@ const lanApps: LanApp[] = [
     icon: { kind: 'simpleicons', slug: 'homeassistant', color: '18bcf2' },
   },
   {
+    id: 'unraid',
+    name: 'Unraid',
+    description: 'NAS dashboard, Docker, and array management',
+    icon: { kind: 'simpleicons', slug: 'unraid', color: 'f15a29' },
+  },
+  {
     id: 'plant-monitor',
     name: 'Plant monitor',
     description: 'Plant health monitoring',
