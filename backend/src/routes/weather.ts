@@ -20,6 +20,13 @@ const router = Router();
 const cache = new Map<string, CachedWeather>();
 const CACHE_TTL_MS = 10 * 60 * 1000;
 
+function parseCoord(raw: string | undefined): number | null {
+  if (raw == null || raw === "") return null;
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return null;
+  return n;
+}
+
 router.get("/", async (req: Request, res: Response) => {
   try {
     const apiKey = process.env.WEATHER_API_KEY;
@@ -46,13 +53,29 @@ router.get("/", async (req: Request, res: Response) => {
     const envLat = process.env.WEATHER_LAT;
     const envLon = process.env.WEATHER_LON;
 
-    const lat = latFromQuery ?? envLat;
-    const lon = lonFromQuery ?? envLon;
+    const fixedLocation = process.env.WEATHER_FIXED_LOCATION === "true";
+    const latStr = fixedLocation ? envLat : latFromQuery ?? envLat;
+    const lonStr = fixedLocation ? envLon : lonFromQuery ?? envLon;
 
-    if (!lat || !lon) {
+    if (!latStr || !lonStr) {
       return res.status(503).json({ error: "weather location not configured" });
     }
 
+    const latNum = parseCoord(latStr);
+    const lonNum = parseCoord(lonStr);
+    if (
+      latNum == null ||
+      lonNum == null ||
+      latNum < -90 ||
+      latNum > 90 ||
+      lonNum < -180 ||
+      lonNum > 180
+    ) {
+      return res.status(400).json({ error: "invalid coordinates" });
+    }
+
+    const lat = String(latNum);
+    const lon = String(lonNum);
     const key = `${lat}:${lon}`;
     const now = Date.now();
 

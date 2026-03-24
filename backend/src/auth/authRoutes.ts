@@ -5,6 +5,7 @@ import { generateSecret, generateURI, verify } from "otplib";
 import rateLimit from "express-rate-limit";
 import { getUserCount, getDb } from "./userStore";
 import { requireAuth } from "./authMiddleware";
+import { isBootstrapAllowed } from "../config/securityEnv";
 
 const router = Router();
 
@@ -56,7 +57,19 @@ const authAttemptLimiter = rateLimit({
   message: { error: "too many auth attempts, please try again later" },
 });
 
+const extendSessionLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: Number(process.env.EXTEND_SESSION_RATE_LIMIT_MAX ?? "40"),
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  message: { error: "too many session extensions, try again later" },
+});
+
 router.post("/bootstrap", async (req, res) => {
+  if (!isBootstrapAllowed()) {
+    return res.status(404).json({ error: "not found" });
+  }
+
   const { username, password } = req.body as {
     username?: string;
     password?: string;
@@ -197,7 +210,7 @@ router.get("/me", requireAuth, (req, res) => {
   res.json({ user, sessionExpiresAt });
 });
 
-router.post("/extend-session", requireAuth, (req, res) => {
+router.post("/extend-session", extendSessionLimiter, requireAuth, (req, res) => {
   const raw = (req.body as { minutes?: unknown })?.minutes;
   const minutes = typeof raw === "number" ? raw : Number(raw);
   if (!Number.isFinite(minutes) || !EXTEND_SESSION_MINUTES.has(minutes)) {

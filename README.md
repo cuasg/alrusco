@@ -49,6 +49,8 @@ Open **http://localhost:5173**.
 
 **First admin (empty database only):** `POST /api/auth/bootstrap` with JSON `{ "username": "...", "password": "..." }` (e.g. via curl or your API client). This works only while there are **zero** users in the DB. The response includes a TOTP setup URI for your authenticator app; complete TOTP before relying on login in production.
 
+**Production:** Bootstrap is **disabled** unless you set `ALLOW_BOOTSTRAP=true` for that one request, then remove it—so a stranger can’t create the first admin on a fresh public deploy.
+
 ## Production build
 
 From the **repository root**:
@@ -82,7 +84,14 @@ Copy [`.env.example`](./.env.example) to `.env` and adjust.
 
 | Variable | Purpose |
 | -------- | ------- |
-| `JWT_SECRET` | Sign session cookies — **required in production** |
+| `NODE_ENV` | Set to `production` for live sites (enables production checks) |
+| `JWT_SECRET` | Sign session cookies — **production: required, ≥32 chars, not a placeholder** |
+| `ALLOW_BOOTSTRAP` | `true` only once for first admin in production; then unset |
+| `ENABLE_HSTS` | `true` if the app is always reached via HTTPS (sends Strict-Transport-Security) |
+| `JSON_BODY_LIMIT` | Max JSON body size (default `512kb`) |
+| `GLOBAL_RATE_LIMIT_MAX` | Requests per IP per 15 min for most routes (default `300`; health check excluded) |
+| `EXTEND_SESSION_RATE_LIMIT_MAX` | Session-extension calls per IP per hour (default `40`) |
+| `WEATHER_FIXED_LOCATION` | `true` to ignore client `?lat`/`?lon` and use only env coordinates |
 | `CREDENTIALS_ENCRYPTION_KEY` | 32-byte key (hex or base64) to encrypt GitHub PAT stored from Settings UI |
 | `PORT` | HTTP port (default `3077`) |
 | `TRUST_PROXY_HOPS` | Set when behind a reverse proxy (default `1`) |
@@ -118,7 +127,17 @@ Frontend-only: `cd frontend && npm run dev` / `npm run build`.
 
 ## Reverse proxy
 
-If you terminate TLS in Nginx, Caddy, or Nginx Proxy Manager, point traffic to the Node port and set **`TRUST_PROXY_HOPS`** appropriately so rate limiting and `req.ip` stay correct.
+If you terminate TLS in Nginx, Caddy, or Nginx Proxy Manager, point traffic to the Node port and set **`TRUST_PROXY_HOPS`** appropriately so rate limiting and `req.ip` stay correct. Use **HTTPS** in the browser; session cookies are **Secure** in production.
+
+## Security (production)
+
+- **Secrets:** Strong `JWT_SECRET`; `CREDENTIALS_ENCRYPTION_KEY` if you store a GitHub PAT in Settings; never commit `.env`.
+- **Bootstrap:** Keep `ALLOW_BOOTSTRAP` unset except for the very first admin user on a new deploy.
+- **Headers:** Helmet is enabled (CSP left off for the bundled SPA). Optionally set **`ENABLE_HSTS=true`** once HTTPS is correct.
+- **Uploads:** JPEG/PNG/WebP/GIF/HEIC only; content is checked with **sharp** (blocks mismatched / hostile types such as SVG-as-image).
+- **Weather:** Use **`WEATHER_FIXED_LOCATION=true`** so anonymous clients can’t pick arbitrary coordinates for your API key.
+- **Rate limits:** Global limit + stricter auth login limits; session **extend** is capped per hour per IP.
+- **Exposure:** Prefer not publishing services you don’t need; keep the NAS admin UI off the public internet.
 
 ## License
 

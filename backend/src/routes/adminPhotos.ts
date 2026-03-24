@@ -162,8 +162,20 @@ const upload = multer({
     fileSize: 20 * 1024 * 1024, // 20MB
   },
   fileFilter: (_req, file, cb) => {
-    if (!file.mimetype.startsWith("image/")) {
-      cb(new Error("Only image uploads are allowed"));
+    const allowed = new Set([
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+      "image/gif",
+      "image/heic",
+      "image/heif",
+    ]);
+    if (!allowed.has(file.mimetype)) {
+      cb(
+        new Error(
+          "Only JPEG, PNG, WebP, GIF, or HEIC/HEIF uploads are allowed (not SVG)",
+        ),
+      );
       return;
     }
     cb(null, true);
@@ -280,6 +292,29 @@ function parsePhotoUploadForm(body: Record<string, string | undefined>): ParsedU
   };
 }
 
+/** Reject non-raster / unexpected content (declared MIME can lie). */
+const SHARP_SAFE_FORMATS = new Set([
+  "jpeg",
+  "png",
+  "webp",
+  "gif",
+  "heif",
+  "avif",
+  "tiff",
+  "jp2",
+  "jxl",
+]);
+
+async function assertProcessableRasterImage(filePath: string): Promise<void> {
+  const meta = await sharp(filePath).metadata();
+  if (!meta.format) {
+    throw new Error("Could not read image file");
+  }
+  if (meta.format === "svg" || !SHARP_SAFE_FORMATS.has(meta.format)) {
+    throw new Error("Unsupported or unsafe image type");
+  }
+}
+
 async function writeWebDerivative(file: Express.Multer.File): Promise<{
   webUrl: string;
   originalUrl: string;
@@ -289,17 +324,25 @@ async function writeWebDerivative(file: Express.Multer.File): Promise<{
     .toLowerCase()}-web.jpg`;
   const webPath = path.join(UPLOAD_WEB_DIR, webFilename);
 
-  await sharp(file.path)
-    .rotate()
-    .resize(1920, 1080, {
-      fit: "inside",
-      withoutEnlargement: true,
-    })
-    .jpeg({
-      quality: 82,
-      chromaSubsampling: "4:2:0",
-    })
-    .toFile(webPath);
+  try {
+    await assertProcessableRasterImage(file.path);
+
+    await sharp(file.path)
+      .rotate()
+      .resize(1920, 1080, {
+        fit: "inside",
+        withoutEnlargement: true,
+      })
+      .jpeg({
+        quality: 82,
+        chromaSubsampling: "4:2:0",
+      })
+      .toFile(webPath);
+  } catch (err) {
+    await fs.promises.unlink(file.path).catch(() => {});
+    await fs.promises.unlink(webPath).catch(() => {});
+    throw err;
+  }
 
   return {
     webUrl: `/uploads/photos/${webFilename}`,

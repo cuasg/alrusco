@@ -17,25 +17,44 @@ import adminPhotosRoutes from "./routes/adminPhotos";
 import adminAlbumsRoutes from "./routes/adminAlbums";
 import adminHomeRoutes from "./routes/adminHome";
 import adminIntegrationsGithubRoutes from "./routes/adminIntegrationsGithub";
+import { assertProductionSecurity } from "./config/securityEnv";
 
 const app = express();
 const PORT = process.env.PORT || 3077;
+const isProd = process.env.NODE_ENV === "production";
+
 // When running behind a reverse proxy (e.g., Nginx Proxy Manager), Express must trust the proxy
 // so req.ip / express-rate-limit can safely use X-Forwarded-For.
 // Using `1` means "trust the first proxy hop", which is typical for single NPM instances.
 app.set("trust proxy", Number(process.env.TRUST_PROXY_HOPS ?? "1"));
+app.disable("x-powered-by");
 
-app.use(express.json());
+app.use(
+  express.json({
+    limit: process.env.JSON_BODY_LIMIT ?? "512kb",
+  }),
+);
 app.use(cookieParser());
 app.use(
   helmet({
+    // SPA serves inline scripts from same origin; tune CSP separately if you add CDNs.
     contentSecurityPolicy: false,
+    crossOriginOpenerPolicy: { policy: "same-origin" },
+    originAgentCluster: true,
+    referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+    hsts:
+      isProd && process.env.ENABLE_HSTS === "true"
+        ? { maxAge: 31536000, includeSubDomains: true, preload: false }
+        : false,
   }),
 );
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100,
+  max: Number(process.env.GLOBAL_RATE_LIMIT_MAX ?? "300"),
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  skip: (req) => req.path === "/api/health",
 });
 
 app.use(limiter);
@@ -62,7 +81,28 @@ const uploadsRoot = path.join(process.cwd(), "data", "uploads");
 if (!fs.existsSync(uploadsRoot)) {
   fs.mkdirSync(uploadsRoot, { recursive: true });
 }
-app.use("/uploads", express.static(uploadsRoot));
+app.use(
+  "/uploads",
+  (_req, res, next) => {
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    next();
+  },
+  express.static(uploadsRoot, {
+    maxAge: isProd ? 7 * 24 * 60 * 60 * 1000 : 0,
+    setHeaders(res, filePath) {
+      const lower = filePath.toLowerCase();
+      if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) {
+        res.setHeader("Content-Type", "image/jpeg");
+      } else if (lower.endsWith(".png")) {
+        res.setHeader("Content-Type", "image/png");
+      } else if (lower.endsWith(".webp")) {
+        res.setHeader("Content-Type", "image/webp");
+      } else if (lower.endsWith(".gif")) {
+        res.setHeader("Content-Type", "image/gif");
+      }
+    },
+  }),
+);
 
 const distPath = path.join(__dirname, "..", "..", "frontend-dist");
 if (fs.existsSync(distPath)) {
@@ -73,6 +113,8 @@ if (fs.existsSync(distPath)) {
 }
 
 async function start() {
+  assertProductionSecurity();
+
   if (!fs.existsSync(path.join(process.cwd(), "data"))) {
     fs.mkdirSync(path.join(process.cwd(), "data"), { recursive: true });
   }

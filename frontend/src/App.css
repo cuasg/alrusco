@@ -617,25 +617,29 @@ body {
   gap: 20px;
 }
 
-/* Projects index: match photos album grid — 1 col mobile, more on wider screens */
-.projects-page .cards-grid {
+/* Projects & dashboard: match photos album grid — 1 col mobile, more on wider screens */
+.projects-page .cards-grid,
+.dashboard-page .cards-grid {
   grid-template-columns: 1fr;
 }
 
 @media (min-width: 520px) {
-  .projects-page .cards-grid {
+  .projects-page .cards-grid,
+  .dashboard-page .cards-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 @media (min-width: 840px) {
-  .projects-page .cards-grid {
+  .projects-page .cards-grid,
+  .dashboard-page .cards-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
 @media (min-width: 1100px) {
-  .projects-page .cards-grid {
+  .projects-page .cards-grid,
+  .dashboard-page .cards-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
@@ -651,6 +655,92 @@ body {
 .card h2 {
   margin-top: 0;
   margin-bottom: 4px;
+}
+
+/* Dashboard app tiles: logo + full-card link */
+.dashboard-app-card {
+  padding: 0;
+  overflow: hidden;
+}
+
+.dashboard-app-card-link {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 100%;
+  padding: 18px 18px 16px;
+  text-decoration: none;
+  color: inherit;
+  gap: 12px;
+  transition: background 0.15s ease;
+  border-radius: 16px;
+}
+
+.dashboard-app-card-link:hover {
+  background: rgba(30, 41, 59, 0.35);
+}
+
+.dashboard-app-card-link:hover .dashboard-app-card-title {
+  color: #93c5fd;
+}
+
+.dashboard-app-card-link:hover .dashboard-app-card-cta {
+  color: #bfdbfe;
+}
+
+.dashboard-app-card-row {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.dashboard-app-logo-wrap {
+  flex-shrink: 0;
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.9);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+}
+
+.dashboard-app-logo {
+  width: 36px;
+  height: 36px;
+  display: block;
+  object-fit: contain;
+}
+
+.dashboard-app-card-text {
+  min-width: 0;
+  flex: 1;
+}
+
+.dashboard-app-card-title {
+  margin: 0 0 6px;
+  font-size: 1.0625rem;
+  font-weight: 700;
+  color: #f3f4f6;
+  transition: color 0.15s ease;
+}
+
+.dashboard-app-card-desc {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: #9ca3af;
+}
+
+.dashboard-app-card-cta {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #60a5fa;
+  margin-top: auto;
+  padding-top: 2px;
+  transition: color 0.15s ease;
 }
 
 .project-card header {
