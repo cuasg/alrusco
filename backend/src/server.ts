@@ -35,10 +35,33 @@ app.use(
   }),
 );
 app.use(cookieParser());
+const cspDisabled = process.env.CSP_DISABLE === "true";
+
 app.use(
   helmet({
-    // SPA serves inline scripts from same origin; tune CSP separately if you add CDNs.
-    contentSecurityPolicy: false,
+    contentSecurityPolicy: cspDisabled
+      ? false
+      : {
+          directives: {
+            defaultSrc: ["'self'"],
+            scriptSrc: ["'self'", "https://www.webglearth.com"],
+            styleSrc: ["'self'", "'unsafe-inline'"],
+            imgSrc: [
+              "'self'",
+              "https://cdn.simpleicons.org",
+              "https://tile.openstreetmap.org",
+              "data:",
+              "blob:",
+            ],
+            connectSrc: ["'self'", "https://tile.openstreetmap.org"],
+            fontSrc: ["'self'"],
+            objectSrc: ["'none'"],
+            baseUri: ["'self'"],
+            frameAncestors: ["'none'"],
+            workerSrc: ["'self'", "blob:"],
+            manifestSrc: ["'self'"],
+          },
+        },
     crossOriginOpenerPolicy: { policy: "same-origin" },
     originAgentCluster: true,
     referrerPolicy: { policy: "strict-origin-when-cross-origin" },

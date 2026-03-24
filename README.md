@@ -92,6 +92,8 @@ Copy [`.env.example`](./.env.example) to `.env` and adjust.
 | `GLOBAL_RATE_LIMIT_MAX` | Requests per IP per 15 min for most routes (default `300`; health check excluded) |
 | `EXTEND_SESSION_RATE_LIMIT_MAX` | Session-extension calls per IP per hour (default `40`) |
 | `WEATHER_FIXED_LOCATION` | `true` to ignore client `?lat`/`?lon` and use only env coordinates |
+| `CSP_DISABLE` | `true` disables Content-Security-Policy (debug only; avoid in production) |
+| `DEBUG_PHOTOS_API` | `true` logs public photos API query details (default off) |
 | `CREDENTIALS_ENCRYPTION_KEY` | 32-byte key (hex or base64) to encrypt GitHub PAT stored from Settings UI |
 | `PORT` | HTTP port (default `3077`) |
 | `TRUST_PROXY_HOPS` | Set when behind a reverse proxy (default `1`) |
@@ -133,11 +135,23 @@ If you terminate TLS in Nginx, Caddy, or Nginx Proxy Manager, point traffic to t
 
 - **Secrets:** Strong `JWT_SECRET`; `CREDENTIALS_ENCRYPTION_KEY` if you store a GitHub PAT in Settings; never commit `.env`.
 - **Bootstrap:** Keep `ALLOW_BOOTSTRAP` unset except for the very first admin user on a new deploy.
-- **Headers:** Helmet is enabled (CSP left off for the bundled SPA). Optionally set **`ENABLE_HSTS=true`** once HTTPS is correct.
+- **Headers:** Helmet is enabled with a **Content-Security-Policy** tuned for this SPA (same-origin scripts/assets, WebGL Earth + OSM tiles, dashboard Simple Icons CDN, `blob:`/`data:` where needed). Set **`CSP_DISABLE=true`** only if you must debug a blocked resource. Optionally set **`ENABLE_HSTS=true`** once HTTPS is correct end-to-end.
+- **Rich text:** User-editable HTML (projects body, descriptions, home copy) is sanitized with **sanitize-html** (allow-list tags/attributes; safe link schemes).
 - **Uploads:** JPEG/PNG/WebP/GIF/HEIC only; content is checked with **sharp** (blocks mismatched / hostile types such as SVG-as-image).
 - **Weather:** Use **`WEATHER_FIXED_LOCATION=true`** so anonymous clients can’t pick arbitrary coordinates for your API key.
 - **Rate limits:** Global limit + stricter auth login limits; session **extend** is capped per hour per IP.
 - **Exposure:** Prefer not publishing services you don’t need; keep the NAS admin UI off the public internet.
+
+### Production checklist (operations)
+
+Revisit periodically (e.g. quarterly):
+
+1. **HTTPS** — Browsers hit the site over TLS; reverse proxy certificates valid.
+2. **`TRUST_PROXY_HOPS`** — Matches how many proxies sit in front of Node (often `1` for a single NPM/Caddy hop).
+3. **`ENABLE_HSTS`** — Enable after confirming HTTPS is always used for this hostname.
+4. **`WEATHER_FIXED_LOCATION`** — `true` in production if weather is enabled.
+5. **`npm audit`** — Run in `backend/` and `frontend/`; apply patches or review advisories; rebuild images after base image updates.
+6. **Backups** — SQLite + `data/uploads` encrypted at rest where stored; avoid public buckets with secrets.
 
 ## License
 

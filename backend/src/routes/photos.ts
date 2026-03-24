@@ -43,16 +43,17 @@ router.get("/", async (req, res) => {
         ? "ORDER BY COALESCE(p.taken_at, p.created_at) ASC"
         : "ORDER BY COALESCE(p.taken_at, p.created_at) DESC";
 
-    // Basic debug logging for troubleshooting
-    // eslint-disable-next-line no-console
-    console.log("[photos] GET /api/photos", {
-      album,
-      category,
-      tag,
-      sort,
-      whereSql,
-      orderBy,
-    });
+    if (process.env.DEBUG_PHOTOS_API === "true") {
+      // eslint-disable-next-line no-console
+      console.log("[photos] GET /api/photos", {
+        album,
+        category,
+        tag,
+        sort,
+        whereSql,
+        orderBy,
+      });
+    }
 
     const rows = await db.all<
       {
