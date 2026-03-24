@@ -8,6 +8,19 @@ type WeatherData = {
   locationLabel: string | null
 }
 
+type ForecastHour = {
+  dt: number
+  timeLabel: string
+  temp: number
+  windDeg: number
+  windSpeed: number
+  description: string
+  iconCode: string
+  main: string
+  pop: number
+  precipInPerHr: number | null
+}
+
 type ForecastDay = {
   date: string
   weekdayShort: string
@@ -16,6 +29,7 @@ type ForecastDay = {
   description: string
   iconCode: string
   main: string
+  hours: ForecastHour[]
 }
 
 type ForecastData = {
@@ -23,8 +37,9 @@ type ForecastData = {
   locationLabel: string | null
 }
 
-function openWeatherIconUrl(iconCode: string): string {
-  return `https://openweathermap.org/img/wn/${iconCode}@2x.png`
+function openWeatherIconUrl(iconCode: string, size: '1x' | '2x' = '2x'): string {
+  const suffix = size === '2x' ? '@2x' : ''
+  return `https://openweathermap.org/img/wn/${iconCode}${suffix}.png`
 }
 
 function weatherUrl(path: string, coords: { lat: number; lon: number } | null): string {
@@ -33,6 +48,43 @@ function weatherUrl(path: string, coords: { lat: number; lon: number } | null): 
   q.set('lat', String(coords.lat))
   q.set('lon', String(coords.lon))
   return `${path}?${q.toString()}`
+}
+
+function shouldShowPrecipitation(h: ForecastHour): boolean {
+  const m = h.main
+  if (/^(Rain|Drizzle|Thunderstorm|Snow)$/i.test(m)) return true
+  if (h.pop >= 0.05) return true
+  if (h.precipInPerHr != null && h.precipInPerHr >= 0.0005) return true
+  return false
+}
+
+function formatPrecipInPerHr(inPerHr: number): string {
+  if (inPerHr < 0.005) return '<0.01'
+  return inPerHr.toFixed(2)
+}
+
+function windDegToCompass(deg: number): string {
+  const d = ((deg % 360) + 360) % 360
+  const names = [
+    'N',
+    'NNE',
+    'NE',
+    'ENE',
+    'E',
+    'ESE',
+    'SE',
+    'SSE',
+    'S',
+    'SSW',
+    'SW',
+    'WSW',
+    'W',
+    'WNW',
+    'NW',
+    'NNW',
+  ]
+  const idx = Math.round(d / 22.5) % 16
+  return names[idx] ?? 'N'
 }
 
 export function WeatherBadge() {
@@ -44,6 +96,7 @@ export function WeatherBadge() {
   const [forecast, setForecast] = useState<ForecastData | null>(null)
   const [forecastLoading, setForecastLoading] = useState(false)
   const [forecastError, setForecastError] = useState<string | null>(null)
+  const [expandedDayDate, setExpandedDayDate] = useState<string | null>(null)
 
   const wrapRef = useRef<HTMLDivElement>(null)
   const panelId = useId()
@@ -134,7 +187,22 @@ export function WeatherBadge() {
         throw new Error('Forecast unavailable')
       }
       const data = (await res.json()) as ForecastData
-      setForecast(data)
+      const days = Array.isArray(data.days)
+        ? data.days.map(d => ({
+            ...d,
+            hours: Array.isArray(d.hours)
+              ? d.hours.map(h => ({
+                  ...h,
+                  pop: typeof h.pop === 'number' && Number.isFinite(h.pop) ? h.pop : 0,
+                  precipInPerHr:
+                    typeof h.precipInPerHr === 'number' && Number.isFinite(h.precipInPerHr)
+                      ? h.precipInPerHr
+                      : null,
+                }))
+              : [],
+          }))
+        : []
+      setForecast({ ...data, days })
     } catch (e) {
       setForecastError(e instanceof Error ? e.message : 'Forecast unavailable')
     } finally {
@@ -145,6 +213,7 @@ export function WeatherBadge() {
   useEffect(() => {
     if (!expanded) {
       setForecastError(null)
+      setExpandedDayDate(null)
       return
     }
 
@@ -177,6 +246,10 @@ export function WeatherBadge() {
     void loadForecast()
   }, [expanded, forecast, forecastLoading, forecastError, loadForecast])
 
+  function toggleDayHourly(date: string) {
+    setExpandedDayDate(prev => (prev === date ? null : date))
+  }
+
   if (error || !weather) {
     return (
       <div
@@ -191,8 +264,8 @@ export function WeatherBadge() {
 
   const tooltip =
     weather.locationLabel != null && weather.locationLabel.trim()
-      ? `Weather — ${weather.locationLabel}. Click for 5-day forecast.`
-      : `Weather — ${weather.description}. Click for 5-day forecast.`
+      ? `Weather — ${weather.locationLabel}. Click for forecast and hourly details.`
+      : `Weather — ${weather.description}. Click for forecast and hourly details.`
 
   return (
     <div
@@ -232,6 +305,7 @@ export function WeatherBadge() {
                 {forecast?.locationLabel ?? weather.locationLabel}
               </p>
             )}
+            <p className="weather-forecast-subhint">Tap a day for a 3-hour hourly breakdown</p>
           </div>
 
           {forecastLoading && (
@@ -244,30 +318,113 @@ export function WeatherBadge() {
           )}
           {!forecastLoading && forecast && forecast.days.length > 0 && (
             <ul className="weather-forecast-days">
-              {forecast.days.map(day => (
-                <li key={day.date} className="weather-forecast-day">
-                  <div className="weather-forecast-day-meta">
-                    <span className="weather-forecast-weekday">{day.weekdayShort}</span>
-                    <span className="weather-forecast-date">
-                      {day.date.slice(5).replace('-', '/')}
-                    </span>
-                  </div>
-                  <img
-                    className="weather-forecast-img"
-                    src={openWeatherIconUrl(day.iconCode)}
-                    alt=""
-                    width={56}
-                    height={56}
-                    loading="lazy"
-                    decoding="async"
-                  />
-                  <div className="weather-forecast-temps">
-                    <span className="weather-forecast-high">{day.high}°</span>
-                    <span className="weather-forecast-low">{day.low}°</span>
-                  </div>
-                  <p className="weather-forecast-desc">{day.description}</p>
-                </li>
-              ))}
+              {forecast.days.map(day => {
+                const hourlyOpen = expandedDayDate === day.date
+                return (
+                  <li key={day.date} className="weather-forecast-day-wrap">
+                    <button
+                      type="button"
+                      className={`weather-forecast-day${hourlyOpen ? ' weather-forecast-day--open' : ''}`}
+                      aria-expanded={hourlyOpen}
+                      aria-controls={`${panelId}-hours-${day.date}`}
+                      id={`${panelId}-day-${day.date}`}
+                      onClick={e => {
+                        e.stopPropagation()
+                        toggleDayHourly(day.date)
+                      }}
+                    >
+                      <span className="weather-forecast-day-chevron" aria-hidden="true">
+                        {hourlyOpen ? '▼' : '▶'}
+                      </span>
+                      <div className="weather-forecast-day-meta">
+                        <span className="weather-forecast-weekday">{day.weekdayShort}</span>
+                        <span className="weather-forecast-date">
+                          {day.date.slice(5).replace('-', '/')}
+                        </span>
+                      </div>
+                      <img
+                        className="weather-forecast-img"
+                        src={openWeatherIconUrl(day.iconCode)}
+                        alt=""
+                        width={56}
+                        height={56}
+                        loading="lazy"
+                        decoding="async"
+                      />
+                      <div className="weather-forecast-temps">
+                        <span className="weather-forecast-high">{day.high}°</span>
+                        <span className="weather-forecast-low">{day.low}°</span>
+                      </div>
+                      <p className="weather-forecast-desc">{day.description}</p>
+                    </button>
+
+                    {hourlyOpen && (
+                      <div
+                        id={`${panelId}-hours-${day.date}`}
+                        className="weather-hourly-scroll"
+                        role="region"
+                        aria-labelledby={`${panelId}-day-${day.date}`}
+                      >
+                        {day.hours.length === 0 ? (
+                          <p className="weather-forecast-muted weather-hourly-empty">
+                            No hourly slots for this day.
+                          </p>
+                        ) : (
+                          <ul className="weather-hourly-list">
+                            {[...day.hours].sort((a, b) => a.dt - b.dt).map(h => (
+                              <li key={`${day.date}-${h.dt}`} className="weather-hourly-row">
+                                <span className="weather-hourly-time">{h.timeLabel}</span>
+                                <img
+                                  className="weather-hourly-icon"
+                                  src={openWeatherIconUrl(h.iconCode, '1x')}
+                                  alt=""
+                                  width={36}
+                                  height={36}
+                                  loading="lazy"
+                                  decoding="async"
+                                />
+                                <span className="weather-hourly-temp">{h.temp}°</span>
+                                <div className="weather-hourly-wind">
+                                  <span
+                                    className="weather-hourly-wind-arrow"
+                                    style={{ transform: `rotate(${h.windDeg + 180}deg)` }}
+                                    title={`Wind from ${windDegToCompass(h.windDeg)}`}
+                                    aria-hidden
+                                  >
+                                    ↑
+                                  </span>
+                                  <span className="weather-hourly-wind-text">
+                                    <span className="weather-hourly-wind-dir">
+                                      {windDegToCompass(h.windDeg)}
+                                    </span>
+                                    <span className="weather-hourly-wind-speed">
+                                      {h.windSpeed} mph
+                                    </span>
+                                  </span>
+                                </div>
+                                <span className="weather-hourly-conditions">
+                                  <span className="weather-hourly-desc">{h.description}</span>
+                                  {shouldShowPrecipitation(h) && (
+                                    <span className="weather-hourly-precip" aria-label="Precipitation">
+                                      {Math.round(h.pop * 100)}% chance
+                                      {h.precipInPerHr != null && h.precipInPerHr >= 0.0005 ? (
+                                        <>
+                                          {' '}
+                                          · {formatPrecipInPerHr(h.precipInPerHr)} in/hr
+                                        </>
+                                      ) : null}
+                                    </span>
+                                  )}
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    )}
+                  </li>
+                )
+              })}
             </ul>
           )}
 

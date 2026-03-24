@@ -31,8 +31,12 @@ type Props = {
   defaultAlbumId?: number | null
   /** When creating photos, pre-select this project gallery. */
   defaultProjectId?: number | null
-  /** Hide collection radios; use default album/project only. */
+  /** Hide collection radios; use default album/project only (typically for new photos on a collection page). */
   lockCollection?: boolean
+  /** When editing from a collection view, seed album/project (API list may omit album names). */
+  initialCollection?:
+    | { kind: 'album'; albumId: number }
+    | { kind: 'project'; projectId: number }
   /** Allow multi-select + bulk upload (new photos only). */
   allowMultipleFiles?: boolean
 }
@@ -64,6 +68,7 @@ export function PhotoEditModal({
   defaultAlbumId = null,
   defaultProjectId = null,
   lockCollection = false,
+  initialCollection,
   allowMultipleFiles = false,
 }: Props) {
   const isEdit = Boolean(initialPhoto)
@@ -116,7 +121,17 @@ export function PhotoEditModal({
     const initialAlbumId =
       firstAlbumName != null ? albums.find((a) => a.name === firstAlbumName)?.id ?? null : null
 
-    if (initialPhoto) {
+    if (initialPhoto && initialCollection) {
+      if (initialCollection.kind === 'project') {
+        setCollectionMode('project')
+        setSelectedProjectId(initialCollection.projectId)
+        setSelectedAlbumId(uncategorizedAlbum?.id ?? null)
+      } else {
+        setCollectionMode('album')
+        setSelectedAlbumId(initialCollection.albumId)
+        setSelectedProjectId(null)
+      }
+    } else if (initialPhoto) {
       if (initialAlbumId != null) {
         setCollectionMode('album')
         setSelectedAlbumId(initialAlbumId)
@@ -155,7 +170,7 @@ export function PhotoEditModal({
     }
 
     void loadProjects()
-  }, [open, initialPhoto, albums, defaultAlbumId, defaultProjectId])
+  }, [open, initialPhoto, initialCollection, albums, defaultAlbumId, defaultProjectId])
 
   function handleBackdropClick(_e: React.MouseEvent<HTMLDivElement>) {
     // Intentionally do nothing to prevent accidental close on backdrop click

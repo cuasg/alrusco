@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { HomeEditModal } from '../ui/HomeEditModal'
-import { HomeEarthEmbed } from '../ui/HomeEarthEmbed'
+import { HomeHeroLottie } from '../ui/HomeHeroLottie'
 import { FALLBACK_HOME, type HomeConfig } from '../types/home'
 
 /**
@@ -108,7 +108,7 @@ export function HomePage() {
                 className="home-hero-banner hp-hero-banner"
               />
             ) : (
-              <HomeEarthEmbed />
+              <HomeHeroLottie />
             )}
           </div>
         </div>

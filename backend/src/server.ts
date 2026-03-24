@@ -48,33 +48,17 @@ app.use(
       : {
           directives: {
             defaultSrc: ["'self'"],
-            // WebGL Earth’s api.js pulls in Google Analytics; allow it or the globe fails to init.
-            scriptSrc: [
-              "'self'",
-              "https://www.webglearth.com",
-              "https://www.google-analytics.com",
-              "https://www.googletagmanager.com",
-            ],
+            // wasm-unsafe-eval: required for @lottiefiles/dotlottie-web (WASM player), without full unsafe-eval.
+            scriptSrc: ["'self'", "'wasm-unsafe-eval'"],
             styleSrc: ["'self'", "'unsafe-inline'"],
             imgSrc: [
               "'self'",
               "https://cdn.simpleicons.org",
               "https://openweathermap.org",
-              "https://tile.openstreetmap.org",
-              "https://www.google-analytics.com",
-              "https://www.googletagmanager.com",
               "data:",
               "blob:",
             ],
-            connectSrc: [
-              "'self'",
-              "https://tile.openstreetmap.org",
-              "https://www.google-analytics.com",
-              "https://*.google-analytics.com",
-              "https://analytics.google.com",
-              "https://*.analytics.google.com",
-              "https://stats.g.doubleclick.net",
-            ],
+            connectSrc: ["'self'", "https://lottie.host"],
             fontSrc: ["'self'"],
             objectSrc: ["'none'"],
             baseUri: ["'self'"],

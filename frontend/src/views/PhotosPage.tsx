@@ -72,7 +72,7 @@ export function PhotosPage() {
 
   const [uploadBusy, setUploadBusy] = useState(false)
   const [uploadNotice, setUploadNotice] = useState<string | null>(null)
-  const [dropCommon, setDropCommon] = useState<'uncategorized' | 'newAlbum' | null>(null)
+  const [dropNewAlbumPanel, setDropNewAlbumPanel] = useState(false)
   const [dropAlbumId, setDropAlbumId] = useState<number | null>(null)
   const [dropProjectId, setDropProjectId] = useState<number | null>(null)
 
@@ -120,7 +120,7 @@ export function PhotosPage() {
   }, [load])
 
   const clearDropHighlights = useCallback(() => {
-    setDropCommon(null)
+    setDropNewAlbumPanel(false)
     setDropAlbumId(null)
     setDropProjectId(null)
   }, [])
@@ -155,16 +155,16 @@ export function PhotosPage() {
     [load, clearDropHighlights],
   )
 
-  const createAlbumAndUpload = useCallback(
+  const promptAlbumNameAndUpload = useCallback(
     async (files: File[]) => {
-      const name = window.prompt('New album name?', '')
+      const name = window.prompt('Album name (leave blank to add to Uncategorized):', '')
       if (name == null) {
         clearDropHighlights()
         return
       }
       const trimmed = name.trim()
       if (!trimmed) {
-        clearDropHighlights()
+        await runBulkUpload(files, {}, 'Added to Uncategorized.')
         return
       }
       setUploadBusy(true)
@@ -187,7 +187,7 @@ export function PhotosPage() {
         await runBulkUpload(
           files,
           { collectionKind: 'album', albumId: data.album.id },
-          `Created album “${trimmed}” and uploaded photos.`,
+          `Created album "${trimmed}" and uploaded photos.`,
         )
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed')
@@ -229,7 +229,7 @@ export function PhotosPage() {
           e.dataTransfer.dropEffect = 'copy'
           setDropAlbumId(c.id)
           setDropProjectId(null)
-          setDropCommon(null)
+          setDropNewAlbumPanel(false)
         }}
         onDragLeave={(e) => {
           if (!e.currentTarget.contains(e.relatedTarget as Node)) {
@@ -275,7 +275,7 @@ export function PhotosPage() {
           e.dataTransfer.dropEffect = 'copy'
           setDropProjectId(c.id)
           setDropAlbumId(null)
-          setDropCommon(null)
+          setDropNewAlbumPanel(false)
         }}
         onDragLeave={(e) => {
           if (!e.currentTarget.contains(e.relatedTarget as Node)) {
@@ -317,7 +317,7 @@ export function PhotosPage() {
       onDragOver={handleShellDragOver}
       onDrop={(e) => {
         if (!user || authLoading) return
-        if (dropAlbumId != null || dropProjectId != null || dropCommon != null) return
+        if (dropAlbumId != null || dropProjectId != null || dropNewAlbumPanel) return
         const files = imageFilesFromDataTransfer(e.dataTransfer)
         if (!files.length) return
         e.preventDefault()
@@ -374,46 +374,25 @@ export function PhotosPage() {
         {user && !authLoading && !loading && (
           <div className="fb-photos-drop-row" onDragOver={handleShellDragOver}>
             <div
-              className={`fb-drop-panel${dropCommon === 'uncategorized' ? ' fb-drop-panel--active' : ''}`}
+              className={`fb-drop-panel${dropNewAlbumPanel ? ' fb-drop-panel--active' : ''}`}
               onDragOver={(e) => {
                 if (!isProbablyFileDrag(e)) return
                 e.preventDefault()
-                setDropCommon('uncategorized')
+                setDropNewAlbumPanel(true)
                 setDropAlbumId(null)
                 setDropProjectId(null)
               }}
-              onDragLeave={() => setDropCommon((z) => (z === 'uncategorized' ? null : z))}
+              onDragLeave={() => setDropNewAlbumPanel(false)}
               onDrop={(e) => {
                 e.preventDefault()
                 e.stopPropagation()
                 const files = imageFilesFromDataTransfer(e.dataTransfer)
-                setDropCommon(null)
-                if (files.length) void runBulkUpload(files, {}, 'Added to Uncategorized.')
+                setDropNewAlbumPanel(false)
+                if (files.length) void promptAlbumNameAndUpload(files)
               }}
             >
-              <strong>Uncategorized</strong>
-              <span>Drop images here (not in an album)</span>
-            </div>
-            <div
-              className={`fb-drop-panel${dropCommon === 'newAlbum' ? ' fb-drop-panel--active' : ''}`}
-              onDragOver={(e) => {
-                if (!isProbablyFileDrag(e)) return
-                e.preventDefault()
-                setDropCommon('newAlbum')
-                setDropAlbumId(null)
-                setDropProjectId(null)
-              }}
-              onDragLeave={() => setDropCommon((z) => (z === 'newAlbum' ? null : z))}
-              onDrop={(e) => {
-                e.preventDefault()
-                e.stopPropagation()
-                const files = imageFilesFromDataTransfer(e.dataTransfer)
-                setDropCommon(null)
-                if (files.length) void createAlbumAndUpload(files)
-              }}
-            >
-              <strong>New album</strong>
-              <span>Drop images — you’ll name the album</span>
+              <strong>New album or Uncategorized</strong>
+              <span>Drop images here — name a new album, or leave the name blank for Uncategorized</span>
             </div>
           </div>
         )}

@@ -469,7 +469,14 @@ export function PhotosCollectionPage() {
           albums={albums}
           defaultAlbumId={kind === 'album' ? collectionId : null}
           defaultProjectId={kind === 'project' ? collectionId : null}
-          lockCollection
+          lockCollection={!editingPhoto}
+          initialCollection={
+            editingPhoto
+              ? kind === 'project'
+                ? { kind: 'project', projectId: collectionId }
+                : { kind: 'album', albumId: collectionId }
+              : undefined
+          }
           allowMultipleFiles={!editingPhoto}
           onClose={() => {
             setEditModalOpen(false)

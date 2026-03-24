@@ -10,6 +10,25 @@ type WeatherPayload = {
   locationLabel: string | null;
 };
 
+type ForecastHourPayload = {
+  /** UTC unix; for ordering (OpenWeather 3-hour steps). */
+  dt: number;
+  timeLabel: string;
+  temp: number;
+  windDeg: number;
+  windSpeed: number;
+  description: string;
+  iconCode: string;
+  main: string;
+  /** Probability of precipitation, 0–1 (OpenWeather `pop`). */
+  pop: number;
+  /**
+   * Liquid-equivalent rate in in/hr from `rain.3h` + `snow.3h` (mm over 3h → avg per hour), imperial.
+   * Null when API omits volume fields (still may have pop).
+   */
+  precipInPerHr: number | null;
+};
+
 type ForecastDayPayload = {
   date: string;
   weekdayShort: string;
@@ -18,6 +37,7 @@ type ForecastDayPayload = {
   description: string;
   iconCode: string;
   main: string;
+  hours: ForecastHourPayload[];
 };
 
 type ForecastPayload = {
@@ -105,6 +125,49 @@ function weekdayShortFromYmd(ymd: string): string {
   return new Date(y, m - 1, d).toLocaleDateString("en-US", {
     weekday: "short",
   });
+}
+
+/** OpenWeatherMap: local wall time from UTC unix + city timezone offset (seconds). */
+function formatForecastLocalTimeLabel(dtUtc: number, timezoneSec: number): string {
+  const d = new Date((dtUtc + timezoneSec) * 1000);
+  const h24 = d.getUTCHours();
+  const m = d.getUTCMinutes();
+  const isPm = h24 >= 12;
+  const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
+  const mm = m < 10 ? `0${m}` : String(m);
+  return `${h12}:${mm} ${isPm ? "PM" : "AM"}`;
+}
+
+const MM_TO_IN = 0.0393701;
+
+/** Avg liquid-equivalent in/hr from OpenWeather 3h rain+snow totals (mm). */
+function precipInPerHrFrom3hBlocks(
+  rainMm3h: number | undefined,
+  snowMm3h: number | undefined,
+): number | null {
+  const r = typeof rainMm3h === "number" && Number.isFinite(rainMm3h) ? rainMm3h : 0;
+  const s = typeof snowMm3h === "number" && Number.isFinite(snowMm3h) ? snowMm3h : 0;
+  const totalMm3h = r + s;
+  if (totalMm3h <= 0) return null;
+  const mmPerHr = totalMm3h / 3;
+  const inPerHr = mmPerHr * MM_TO_IN;
+  return Math.round(inPerHr * 1000) / 1000;
+}
+
+function clampPop(raw: unknown): number {
+  if (typeof raw !== "number" || !Number.isFinite(raw)) return 0;
+  return Math.min(1, Math.max(0, raw));
+}
+
+/** Calendar YYYY-MM-DD in the forecast city's local time (not UTC dt_txt date). */
+function localYmdFromForecastDt(dtUtc: number, timezoneSec: number): string {
+  const d = new Date((dtUtc + timezoneSec) * 1000);
+  const y = d.getUTCFullYear();
+  const mo = d.getUTCMonth() + 1;
+  const day = d.getUTCDate();
+  const mm = mo < 10 ? `0${mo}` : String(mo);
+  const dd = day < 10 ? `0${day}` : String(day);
+  return `${y}-${mm}-${dd}`;
 }
 
 router.get("/", async (req: Request, res: Response) => {
@@ -200,7 +263,7 @@ router.get("/forecast", async (req: Request, res: Response) => {
     }
 
     const { lat, lon, cacheKey } = loc;
-    const forecastKey = `fc:${cacheKey}`;
+    const forecastKey = `fc4:${cacheKey}`;
     const now = Date.now();
 
     const cached = forecastCache.get(forecastKey);
@@ -221,11 +284,16 @@ router.get("/forecast", async (req: Request, res: Response) => {
 
     const json = (await response.json()) as {
       list?: {
+        dt: number;
         dt_txt: string;
-        main: { temp_min: number; temp_max: number };
+        pop?: number;
+        rain?: { "3h"?: number };
+        snow?: { "3h"?: number };
+        main: { temp: number; temp_min: number; temp_max: number };
         weather: { main: string; description: string; icon: string }[];
+        wind?: { speed?: number; deg?: number };
       }[];
-      city?: { name?: string; country?: string };
+      city?: { name?: string; country?: string; timezone?: number };
     };
 
     const list = json.list;
@@ -240,12 +308,16 @@ router.get("/forecast", async (req: Request, res: Response) => {
       w: { main: string; description: string; icon: string };
     };
 
+    const cityTimezone = json.city?.timezone ?? 0;
+
     const byDay = new Map<string, Agg>();
+    const hoursByDay = new Map<string, ForecastHourPayload[]>();
 
     for (const item of list) {
-      const dayKey = item.dt_txt.slice(0, 10);
-      const hour = Number.parseInt(item.dt_txt.slice(11, 13), 10);
-      const dist = Number.isFinite(hour) ? Math.abs(hour - 12) : 12;
+      const dayKey = localYmdFromForecastDt(item.dt, cityTimezone);
+      const localWall = new Date((item.dt + cityTimezone) * 1000);
+      const localHour = localWall.getUTCHours();
+      const dist = Number.isFinite(localHour) ? Math.abs(localHour - 12) : 12;
       const w = item.weather[0];
       if (!w) continue;
 
@@ -267,12 +339,39 @@ router.get("/forecast", async (req: Request, res: Response) => {
           prev.w = w;
         }
       }
+
+      const windSpeed = item.wind?.speed ?? 0;
+      const windDeg =
+        typeof item.wind?.deg === "number" && Number.isFinite(item.wind.deg)
+          ? item.wind.deg
+          : 0;
+      const precipInPerHr = precipInPerHrFrom3hBlocks(item.rain?.["3h"], item.snow?.["3h"]);
+
+      const slot: ForecastHourPayload = {
+        dt: item.dt,
+        timeLabel: formatForecastLocalTimeLabel(item.dt, cityTimezone),
+        temp: Math.round(item.main.temp),
+        windDeg,
+        windSpeed: Math.round(windSpeed * 10) / 10,
+        description: w.description,
+        iconCode: w.icon,
+        main: w.main,
+        pop: clampPop(item.pop),
+        precipInPerHr,
+      };
+      const bucket = hoursByDay.get(dayKey);
+      if (bucket) {
+        bucket.push(slot);
+      } else {
+        hoursByDay.set(dayKey, [slot]);
+      }
     }
 
     const sortedDays = [...byDay.keys()].sort().slice(0, 5);
 
     const days: ForecastDayPayload[] = sortedDays.map((date) => {
       const agg = byDay.get(date)!;
+      const hours = [...(hoursByDay.get(date) ?? [])].sort((a, b) => a.dt - b.dt);
       return {
         date,
         weekdayShort: weekdayShortFromYmd(date),
@@ -281,6 +380,7 @@ router.get("/forecast", async (req: Request, res: Response) => {
         description: agg.w.description,
         iconCode: agg.w.icon,
         main: agg.w.main,
+        hours,
       };
     });
 
