@@ -330,6 +330,70 @@ body {
   margin-top: 10px;
 }
 
+/* Session expiry prompt (above other modals) */
+.session-expiry-backdrop {
+  z-index: 60;
+}
+
+.session-expiry-modal {
+  max-width: 440px;
+}
+
+.session-expiry-intro {
+  margin: 0 0 14px;
+  font-size: 0.9rem;
+  color: #9ca3af;
+  line-height: 1.45;
+}
+
+.session-expiry-fieldset {
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 10px;
+  padding: 12px 14px 14px;
+  margin: 0 0 12px;
+}
+
+.session-expiry-legend {
+  padding: 0 6px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #e5e7eb;
+}
+
+.session-expiry-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+@media (min-width: 400px) {
+  .session-expiry-options {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.session-expiry-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(30, 41, 59, 0.6);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  cursor: pointer;
+  font-size: 0.875rem;
+  color: #e5e7eb;
+}
+
+.session-expiry-option input {
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.session-expiry-actions {
+  margin-top: 14px;
+}
+
 .success {
   margin-top: 4px;
   font-size: 12px;

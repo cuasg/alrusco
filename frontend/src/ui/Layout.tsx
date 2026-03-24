@@ -6,6 +6,7 @@ import { WeatherBadge } from './WeatherBadge'
 import { useAuth } from '../hooks/useAuth'
 import { AccountMenu } from './AccountMenu'
 import { ChangePasswordModal } from './ChangePasswordModal'
+import { SessionExpiryWatcher } from './SessionExpiryWatcher'
 
 const projectLinks = [
   { label: 'All projects', href: '/projects' },
@@ -238,6 +239,7 @@ export function Layout({ children }: Props) {
       </nav>
 
       <ChangePasswordModal open={mobilePwdOpen} onClose={() => setMobilePwdOpen(false)} />
+      <SessionExpiryWatcher />
       <main className="app-main">{children}</main>
       <footer className="app-footer">
         <span>© {new Date().getFullYear()} alrusco</span>

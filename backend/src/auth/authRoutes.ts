@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, type Response } from "express";
 import bcrypt from "bcrypt";
 import jwt, { JwtPayload } from "jsonwebtoken";
 import { generateSecret, generateURI, verify } from "otplib";
@@ -12,7 +12,41 @@ const JWT_SECRET = process.env.JWT_SECRET || "change-me-in-prod";
 const COOKIE_NAME = "alrusco_session";
 const COOKIE_SECURE =
   process.env.COOKIE_SECURE === "true" || process.env.NODE_ENV === "production";
-const COOKIE_MAX_AGE_MS = 8 * 60 * 60 * 1000;
+/** Authenticated session length — cookie maxAge and JWT exp must stay aligned. */
+const SESSION_MAX_AGE_MS = 30 * 60 * 1000;
+const COOKIE_MAX_AGE_MS = SESSION_MAX_AGE_MS;
+
+/** Allowed values for POST /api/auth/extend-session (minutes until new expiry). */
+const EXTEND_SESSION_MINUTES = new Set([30, 60, 90, 120]);
+
+function issueSessionCookie(
+  res: Response,
+  userId: number,
+  username: string,
+  durationMs: number,
+): string {
+  const expiresInSec = Math.max(1, Math.floor(durationMs / 1000));
+  const sessionToken = jwt.sign(
+    { sub: userId, username, stage: "session" },
+    JWT_SECRET,
+    { expiresIn: expiresInSec },
+  );
+  res.cookie(COOKIE_NAME, sessionToken, {
+    httpOnly: true,
+    secure: COOKIE_SECURE,
+    sameSite: "lax",
+    maxAge: durationMs,
+  });
+  return sessionToken;
+}
+
+function sessionExpiresAtFromToken(token: string): string | null {
+  const decoded = jwt.decode(token) as JwtPayload | null;
+  if (decoded?.exp == null || typeof decoded.exp !== "number") {
+    return null;
+  }
+  return new Date(decoded.exp * 1000).toISOString();
+}
 
 const authAttemptLimiter = rateLimit({
   windowMs: 10 * 60 * 1000,
@@ -147,22 +181,7 @@ router.post("/verify-totp", authAttemptLimiter, async (req, res) => {
       user.id,
     ]);
 
-    const sessionToken = jwt.sign(
-      { sub: user.id, username: user.username, stage: "session" },
-      JWT_SECRET,
-      { expiresIn: "8h" },
-    );
-
-    res.cookie(
-      COOKIE_NAME,
-      sessionToken,
-      {
-        httpOnly: true,
-        secure: COOKIE_SECURE,
-        sameSite: "lax",
-        maxAge: COOKIE_MAX_AGE_MS,
-      },
-    );
+    issueSessionCookie(res, user.id, user.username, COOKIE_MAX_AGE_MS);
 
     res.json({ ok: true });
   } catch (err) {
@@ -172,7 +191,27 @@ router.post("/verify-totp", authAttemptLimiter, async (req, res) => {
 
 router.get("/me", requireAuth, (req, res) => {
   const user = (req as any).user;
-  res.json({ user });
+  const token = req.cookies?.[COOKIE_NAME];
+  const sessionExpiresAt =
+    typeof token === "string" ? sessionExpiresAtFromToken(token) : null;
+  res.json({ user, sessionExpiresAt });
+});
+
+router.post("/extend-session", requireAuth, (req, res) => {
+  const raw = (req.body as { minutes?: unknown })?.minutes;
+  const minutes = typeof raw === "number" ? raw : Number(raw);
+  if (!Number.isFinite(minutes) || !EXTEND_SESSION_MINUTES.has(minutes)) {
+    return res.status(400).json({
+      error: "minutes must be 30, 60, 90, or 120",
+    });
+  }
+
+  const user = (req as any).user as { id: number; username: string };
+  const durationMs = minutes * 60 * 1000;
+  const sessionToken = issueSessionCookie(res, user.id, user.username, durationMs);
+  const sessionExpiresAt = sessionExpiresAtFromToken(sessionToken);
+
+  res.json({ ok: true, sessionExpiresAt });
 });
 
 router.post("/change-password", requireAuth, async (req, res) => {

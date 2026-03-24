@@ -40,6 +40,7 @@ export function LoginPage() {
     try {
       const res = await fetch('/api/auth/verify-totp', {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tempToken, code }),
       })
