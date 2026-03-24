@@ -11,28 +11,28 @@ export type HomeConfig = {
   bannerImageUrl?: string | null
 }
 
+/** Defaults aligned with the public homepage; admin/API can override hero + highlights. */
 export const FALLBACK_HOME: HomeConfig = {
-  eyebrow: 'Homelab · Infrastructure · Applications',
-  heading: 'Designing reliable systems at home and at work.',
+  eyebrow: 'Systems · Building · Practice',
+  heading: 'I build systems, solve problems, and make things work better.',
   tagline:
-    'I build and operate secure, observable infrastructure in my homelab and in production. This site is both my portfolio and the front door to my personal tools.',
+    "I'm focused on building, improving, and connecting systems — from home lab environments and web infrastructure to practical, real-world workflows.",
   highlights: [
     {
-      title: 'Infrastructure',
+      title: 'Systems & Infrastructure',
       description:
-        'Clustered storage, virtualization, and networking designed for resilience, observability, and easy recovery.',
+        'Building and managing containerized environments, self-hosted services, reverse proxies, secure access, and reliable home lab systems.',
     },
     {
-      title: 'Applications',
+      title: 'Automation & Problem Solving',
       description:
-        'Internal dashboards, automations, and tools that make day-to-day operations smoother and more transparent.',
+        'Debugging broken workflows, connecting tools that do not naturally fit together, and turning messy manual processes into structured, repeatable systems.',
     },
     {
-      title: 'Practice & learning',
+      title: 'Web & Application Development',
       description:
-        'Experiments, labs, and write-ups focused on doing things the right way instead of the quickest way.',
+        'Designing practical web interfaces, working with APIs and backend logic, and building tools that are usable, purposeful, and grounded in real needs.',
     },
   ],
   bannerImageUrl: null,
 }
-

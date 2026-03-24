@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { lanApps } from "../config/lanApps";
 import { requireAuth } from "../auth/authMiddleware";
+import { isAllowedLanAppRedirectUrl } from "../utils/appRedirectAllowlist";
 
 const router = Router();
 
@@ -12,6 +13,10 @@ router.get("/:id", (req, res) => {
 
   if (!targetApp) {
     return res.status(404).json({ error: "Unknown app id" });
+  }
+
+  if (!isAllowedLanAppRedirectUrl(targetApp.internalUrl)) {
+    return res.status(500).json({ error: "App redirect misconfigured" });
   }
 
   // Redirect the browser directly to the internal app URL.

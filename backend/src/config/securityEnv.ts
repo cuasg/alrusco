@@ -31,6 +31,14 @@ export function assertProductionSecurity(): void {
   console.info(
     "[security] Production mode: use HTTPS in the browser (reverse proxy TLS). Session cookies are Secure.",
   );
+
+  const trustVal = Number(process.env.TRUST_PROXY_HOPS ?? "1");
+  if (!Number.isFinite(trustVal) || trustVal < 1) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      "[security] TRUST_PROXY_HOPS resolves to an invalid or zero value; rate limiting and req.ip may be wrong behind a reverse proxy. Set TRUST_PROXY_HOPS=1 (or your hop count).",
+    );
+  }
 }
 
 /** Whether first-user bootstrap is allowed (locked off in production by default). */

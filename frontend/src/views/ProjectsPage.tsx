@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { ProjectEditModal } from '../ui/ProjectEditModal'
 
@@ -23,9 +24,34 @@ export type Project = {
   body?: string | null
 }
 
+const CATEGORY_KEYS = ['infra', 'apps', 'oss'] as const
+type CategoryFilter = 'all' | (typeof CATEGORY_KEYS)[number]
+
+function categoryFromSearch(searchParams: URLSearchParams): CategoryFilter {
+  const c = searchParams.get('category')
+  if (c && (CATEGORY_KEYS as readonly string[]).includes(c)) return c as CategoryFilter
+  return 'all'
+}
+
 export function ProjectsPage() {
   const { user, loading: authLoading } = useAuth()
-  const [category, setCategory] = useState<string>('all')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const category = useMemo(() => categoryFromSearch(searchParams), [searchParams])
+
+  function selectCategory(next: CategoryFilter) {
+    if (next === 'all') {
+      setSearchParams(
+        (prev) => {
+          const p = new URLSearchParams(prev)
+          p.delete('category')
+          return p
+        },
+        { replace: true },
+      )
+    } else {
+      setSearchParams({ category: next }, { replace: true })
+    }
+  }
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -119,28 +145,28 @@ export function ProjectsPage() {
         <button
           type="button"
           className={category === 'all' ? 'chip chip--active' : 'chip'}
-          onClick={() => setCategory('all')}
+          onClick={() => selectCategory('all')}
         >
           All
         </button>
         <button
           type="button"
           className={category === 'infra' ? 'chip chip--active' : 'chip'}
-          onClick={() => setCategory('infra')}
+          onClick={() => selectCategory('infra')}
         >
           Infrastructure
         </button>
         <button
           type="button"
           className={category === 'apps' ? 'chip chip--active' : 'chip'}
-          onClick={() => setCategory('apps')}
+          onClick={() => selectCategory('apps')}
         >
           Applications
         </button>
         <button
           type="button"
           className={category === 'oss' ? 'chip chip--active' : 'chip'}
-          onClick={() => setCategory('oss')}
+          onClick={() => selectCategory('oss')}
         >
           Open source
         </button>

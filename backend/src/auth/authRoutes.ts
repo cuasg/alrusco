@@ -6,13 +6,36 @@ import rateLimit from "express-rate-limit";
 import { getUserCount, getDb } from "./userStore";
 import { requireAuth } from "./authMiddleware";
 import { isBootstrapAllowed } from "../config/securityEnv";
+import { jwtVerifyOptions } from "./jwtVerifyOptions";
 
 const router = Router();
+
+const MAX_AUTH_USERNAME_LEN = 128;
+const MAX_AUTH_PASSWORD_LEN = 512;
+const MAX_TEMP_JWT_CHARS = 4096;
+const MAX_TOTP_CODE_CHARS = 32;
 
 const JWT_SECRET = process.env.JWT_SECRET || "change-me-in-prod";
 const COOKIE_NAME = "alrusco_session";
 const COOKIE_SECURE =
   process.env.COOKIE_SECURE === "true" || process.env.NODE_ENV === "production";
+
+function normalizeCookieDomain(input: string | undefined): string | undefined {
+  const raw = input?.trim();
+  if (!raw) return undefined;
+
+  // Host-only local development should not use a dotted domain.
+  if (raw === "localhost" || raw.endsWith(".localhost")) {
+    return raw;
+  }
+
+  return raw.startsWith(".") ? raw : `.${raw}`;
+}
+
+const COOKIE_DOMAIN =
+  normalizeCookieDomain(process.env.COOKIE_DOMAIN) ||
+  // Deterministic fallback for this deployment hostname, even if NODE_ENV is misconfigured.
+  ".alrusco.com";
 /** Authenticated session length — cookie maxAge and JWT exp must stay aligned. */
 const SESSION_MAX_AGE_MS = 30 * 60 * 1000;
 const COOKIE_MAX_AGE_MS = SESSION_MAX_AGE_MS;
@@ -30,12 +53,14 @@ function issueSessionCookie(
   const sessionToken = jwt.sign(
     { sub: userId, username, stage: "session" },
     JWT_SECRET,
-    { expiresIn: expiresInSec },
+    { expiresIn: expiresInSec, algorithm: "HS256" },
   );
   res.cookie(COOKIE_NAME, sessionToken, {
     httpOnly: true,
     secure: COOKIE_SECURE,
     sameSite: "lax",
+    domain: COOKIE_DOMAIN,
+    path: "/",
     maxAge: durationMs,
   });
   return sessionToken;
@@ -78,6 +103,12 @@ router.post("/bootstrap", async (req, res) => {
   if (!username || !password) {
     return res.status(400).json({ error: "username and password required" });
   }
+  if (
+    username.length > MAX_AUTH_USERNAME_LEN ||
+    password.length > MAX_AUTH_PASSWORD_LEN
+  ) {
+    return res.status(400).json({ error: "invalid input" });
+  }
 
   const count = await getUserCount();
   if (count > 0) {
@@ -119,6 +150,12 @@ router.post("/login", authAttemptLimiter, async (req, res) => {
   if (!username || !password) {
     return res.status(400).json({ error: "invalid credentials" });
   }
+  if (
+    username.length > MAX_AUTH_USERNAME_LEN ||
+    password.length > MAX_AUTH_PASSWORD_LEN
+  ) {
+    return res.status(400).json({ error: "invalid credentials" });
+  }
 
   const db = await getDb();
   const user = await db.get<{
@@ -140,7 +177,7 @@ router.post("/login", authAttemptLimiter, async (req, res) => {
   const tempToken = jwt.sign(
     { sub: user.id, username: user.username, stage: "password" },
     JWT_SECRET,
-    { expiresIn: "5m" },
+    { expiresIn: "5m", algorithm: "HS256" },
   );
 
   res.json({ tempToken });
@@ -155,9 +192,15 @@ router.post("/verify-totp", authAttemptLimiter, async (req, res) => {
   if (!tempToken || !code) {
     return res.status(400).json({ error: "missing token or code" });
   }
+  if (
+    tempToken.length > MAX_TEMP_JWT_CHARS ||
+    code.length > MAX_TOTP_CODE_CHARS
+  ) {
+    return res.status(400).json({ error: "invalid input" });
+  }
 
   try {
-    const decoded = jwt.verify(tempToken, JWT_SECRET) as JwtPayload;
+    const decoded = jwt.verify(tempToken, JWT_SECRET, jwtVerifyOptions) as JwtPayload;
     const payload = decoded as JwtPayload & {
       sub: number;
       username: string;
@@ -208,6 +251,14 @@ router.get("/me", requireAuth, (req, res) => {
   const sessionExpiresAt =
     typeof token === "string" ? sessionExpiresAtFromToken(token) : null;
   res.json({ user, sessionExpiresAt });
+});
+
+/**
+ * Reverse-proxy auth probe endpoint for app subdomains.
+ * Used by Nginx/NPM auth_request to allow/deny upstream access.
+ */
+router.get("/proxy-check", requireAuth, (_req, res) => {
+  res.json({ ok: true });
 });
 
 router.post("/extend-session", extendSessionLimiter, requireAuth, (req, res) => {
@@ -270,6 +321,8 @@ router.post("/logout", (_req, res) => {
     httpOnly: true,
     secure: COOKIE_SECURE,
     sameSite: "lax",
+    domain: COOKIE_DOMAIN,
+    path: "/",
   });
   res.json({ ok: true });
 });

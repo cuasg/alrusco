@@ -1,4 +1,4 @@
-import express from "express";
+import express, { type Request } from "express";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import cookieParser from "cookie-parser";
@@ -12,12 +12,16 @@ import weatherRoutes from "./routes/weather";
 import projectsRoutes from "./routes/projects";
 import photosRoutes from "./routes/photos";
 import homeRoutes from "./routes/home";
+import portfolioPublicRoutes from "./routes/portfolioPublic";
 import adminProjectsRoutes from "./routes/adminProjects";
 import adminPhotosRoutes from "./routes/adminPhotos";
 import adminAlbumsRoutes from "./routes/adminAlbums";
 import adminHomeRoutes from "./routes/adminHome";
+import adminPortfolioRoutes from "./routes/adminPortfolio";
 import adminIntegrationsGithubRoutes from "./routes/adminIntegrationsGithub";
 import { assertProductionSecurity } from "./config/securityEnv";
+import { lanApps } from "./config/lanApps";
+import { assertLanAppsInternalUrls } from "./utils/appRedirectAllowlist";
 
 const app = express();
 const PORT = process.env.PORT || 3077;
@@ -55,6 +59,7 @@ app.use(
             imgSrc: [
               "'self'",
               "https://cdn.simpleicons.org",
+              "https://openweathermap.org",
               "https://tile.openstreetmap.org",
               "https://www.google-analytics.com",
               "https://www.googletagmanager.com",
@@ -88,12 +93,30 @@ app.use(
   }),
 );
 
+function shouldSkipGlobalRateLimit(req: Request): boolean {
+  const p = req.path;
+  if (p === "/api/health" || p === "/api/auth/proxy-check") {
+    return true;
+  }
+  // Cheap static GETs: favicon + Vite build chunks should not burn the API budget during normal browsing.
+  if (req.method === "GET") {
+    if (p === "/favicon.ico" || p === "/robots.txt") {
+      return true;
+    }
+    if (p.startsWith("/assets/")) {
+      return true;
+    }
+  }
+  return false;
+}
+
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: Number(process.env.GLOBAL_RATE_LIMIT_MAX ?? "300"),
+  // Homelab + forward-auth fan-out can exceed 300/15m quickly when testing multiple tabs/apps.
+  max: Number(process.env.GLOBAL_RATE_LIMIT_MAX ?? "1200"),
   standardHeaders: "draft-7",
   legacyHeaders: false,
-  skip: (req) => req.path === "/api/health",
+  skip: shouldSkipGlobalRateLimit,
 });
 
 app.use(limiter);
@@ -108,10 +131,12 @@ app.use("/api/weather", weatherRoutes);
 app.use("/api/projects", projectsRoutes);
 app.use("/api/photos", photosRoutes);
 app.use("/api/public/home", homeRoutes);
+app.use("/api/public/portfolio", portfolioPublicRoutes);
 app.use("/api/admin/projects", adminProjectsRoutes);
 app.use("/api/admin/photos", adminPhotosRoutes);
 app.use("/api/admin/albums", adminAlbumsRoutes);
 app.use("/api/admin/home", adminHomeRoutes);
+app.use("/api/admin/portfolio", adminPortfolioRoutes);
 app.use("/api/admin/integrations/github", adminIntegrationsGithubRoutes);
 app.use("/apps", appsRoutes);
 
@@ -153,6 +178,7 @@ if (fs.existsSync(distPath)) {
 
 async function start() {
   assertProductionSecurity();
+  assertLanAppsInternalUrls(lanApps);
 
   if (!fs.existsSync(path.join(process.cwd(), "data"))) {
     fs.mkdirSync(path.join(process.cwd(), "data"), { recursive: true });

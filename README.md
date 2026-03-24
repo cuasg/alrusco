@@ -86,10 +86,11 @@ Copy [`.env.example`](./.env.example) to `.env` and adjust.
 | -------- | ------- |
 | `NODE_ENV` | Set to `production` for live sites (enables production checks) |
 | `JWT_SECRET` | Sign session cookies — **production: required, ≥32 chars, not a placeholder** |
+| `COOKIE_DOMAIN` | Optional cookie domain for cross-subdomain auth (example: `.alrusco.com`) |
 | `ALLOW_BOOTSTRAP` | `true` only once for first admin in production; then unset |
 | `ENABLE_HSTS` | `true` if the app is always reached via HTTPS (sends Strict-Transport-Security) |
 | `JSON_BODY_LIMIT` | Max JSON body size (default `512kb`) |
-| `GLOBAL_RATE_LIMIT_MAX` | Requests per IP per 15 min for most routes (default `300`; health check excluded) |
+| `GLOBAL_RATE_LIMIT_MAX` | Requests per IP per 15 min for most routes (default `1200`; skips health, `proxy-check`, favicon, `/assets/*` GETs) |
 | `EXTEND_SESSION_RATE_LIMIT_MAX` | Session-extension calls per IP per hour (default `40`) |
 | `WEATHER_FIXED_LOCATION` | `true` to ignore client `?lat`/`?lon` and use only env coordinates |
 | `CSP_DISABLE` | `true` disables Content-Security-Policy (debug only; avoid in production) |
@@ -127,6 +128,10 @@ alrusco/
 
 Frontend-only: `cd frontend && npm run dev` / `npm run build`.
 
+## Weather API
+
+The navbar weather pill calls **`GET /api/weather`** (current conditions). Clicking it loads **`GET /api/weather/forecast`** (5-day summary from OpenWeather **5 day / 3 hour forecast**, same API key and location rules as current weather).
+
 ## Reverse proxy
 
 If you terminate TLS in Nginx, Caddy, or Nginx Proxy Manager, point traffic to the Node port and set **`TRUST_PROXY_HOPS`** appropriately so rate limiting and `req.ip` stay correct. Use **HTTPS** in the browser; session cookies are **Secure** in production.
@@ -141,6 +146,7 @@ If you terminate TLS in Nginx, Caddy, or Nginx Proxy Manager, point traffic to t
 - **Weather:** Use **`WEATHER_FIXED_LOCATION=true`** so anonymous clients can’t pick arbitrary coordinates for your API key.
 - **Rate limits:** Global limit + stricter auth login limits; session **extend** is capped per hour per IP.
 - **Exposure:** Prefer not publishing services you don’t need; keep the NAS admin UI off the public internet.
+- **Subdomain gate:** To require alrusco login before app subdomains load, set `COOKIE_DOMAIN=.alrusco.com` and configure reverse-proxy forward-auth to `GET /api/auth/proxy-check`.
 
 ### Production checklist (operations)
 

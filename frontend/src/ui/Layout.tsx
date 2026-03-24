@@ -1,26 +1,11 @@
 import type { ReactNode } from 'react'
 import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { NavDropdown } from './NavDropdown'
 import { WeatherBadge } from './WeatherBadge'
 import { useAuth } from '../hooks/useAuth'
 import { AccountMenu } from './AccountMenu'
 import { ChangePasswordModal } from './ChangePasswordModal'
 import { SessionExpiryWatcher } from './SessionExpiryWatcher'
-
-const projectLinks = [
-  { label: 'All projects', href: '/projects' },
-  { label: 'Infrastructure', href: '/projects?category=infra' },
-  { label: 'Applications', href: '/projects?category=apps' },
-  { label: 'Open source', href: '/projects?category=oss' },
-] as const
-
-const photoLinks = [
-  { label: 'All photos', href: '/photos' },
-  { label: 'Infra snapshots', href: '/photos?category=infra' },
-  { label: 'Places', href: '/photos?category=places' },
-  { label: 'People', href: '/photos?category=people' },
-] as const
 
 type Props = {
   children: ReactNode
@@ -90,8 +75,15 @@ export function Layout({ children }: Props) {
             <Link to="/" className={navLinkClass('/')}>
               Home
             </Link>
-            <NavDropdown label="Projects" items={[...projectLinks]} />
-            <NavDropdown label="Photos" items={[...photoLinks]} />
+            <Link to="/projects" className={navLinkClass('/projects')}>
+              Projects
+            </Link>
+            <Link to="/portfolio" className={navLinkClass('/portfolio')}>
+              Portfolio
+            </Link>
+            <Link to="/photos" className={navLinkClass('/photos')}>
+              Photos
+            </Link>
             {user && (
               <Link to="/dashboard" className={navLinkClass('/dashboard')}>
                 Dashboard
@@ -151,37 +143,23 @@ export function Layout({ children }: Props) {
             Home
           </Link>
 
-          <details className="nav-mobile-details">
-            <summary className="nav-mobile-summary">Projects</summary>
-            <div className="nav-mobile-sub">
-              {projectLinks.map((item) => (
-                <Link
-                  key={item.href}
-                  to={item.href}
-                  className="nav-mobile-sublink"
-                  onClick={() => setMobileNavOpen(false)}
-                >
-                  {item.label}
-                </Link>
-              ))}
-            </div>
-          </details>
-
-          <details className="nav-mobile-details">
-            <summary className="nav-mobile-summary">Photos</summary>
-            <div className="nav-mobile-sub">
-              {photoLinks.map((item) => (
-                <Link
-                  key={item.href}
-                  to={item.href}
-                  className="nav-mobile-sublink"
-                  onClick={() => setMobileNavOpen(false)}
-                >
-                  {item.label}
-                </Link>
-              ))}
-            </div>
-          </details>
+          <Link
+            to="/projects"
+            className={navLinkClass('/projects')}
+            onClick={() => setMobileNavOpen(false)}
+          >
+            Projects
+          </Link>
+          <Link
+            to="/portfolio"
+            className={navLinkClass('/portfolio')}
+            onClick={() => setMobileNavOpen(false)}
+          >
+            Portfolio
+          </Link>
+          <Link to="/photos" className={navLinkClass('/photos')} onClick={() => setMobileNavOpen(false)}>
+            Photos
+          </Link>
 
           {user && (
             <Link

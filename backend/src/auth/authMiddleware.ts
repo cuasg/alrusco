@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from "express";
 import jwt, { JwtPayload } from "jsonwebtoken";
+import { jwtVerifyOptions } from "./jwtVerifyOptions";
 
 const JWT_SECRET = process.env.JWT_SECRET || "change-me-in-prod";
 const COOKIE_NAME = "alrusco_session";
@@ -15,7 +16,7 @@ export function requireAuth(
   }
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload;
+    const decoded = jwt.verify(token, JWT_SECRET, jwtVerifyOptions) as JwtPayload;
     const payload = decoded as JwtPayload & {
       sub: number;
       username: string;
