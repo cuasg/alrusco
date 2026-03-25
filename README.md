@@ -49,6 +49,8 @@ Open **http://localhost:5173**.
 
 **First admin (empty database only):** `POST /api/auth/bootstrap` with JSON `{ "username": "...", "password": "..." }` (e.g. via curl or your API client). This works only while there are **zero** users in the DB. The response includes a TOTP setup URI for your authenticator app; complete TOTP before relying on login in production.
 
+Alternatively, set `ADMIN_USERNAME`/`ADMIN_PASSWORD` and `ALLOW_ADMIN_ENV_INIT=true` in your env, restart the server, then sign in once to finish TOTP enrollment via QR code.
+
 **Production:** Bootstrap is **disabled** unless you set `ALLOW_BOOTSTRAP=true` for that one request, then remove it—so a stranger can’t create the first admin on a fresh public deploy.
 
 ## Production build
@@ -88,6 +90,8 @@ Copy [`.env.example`](./.env.example) to `.env` and adjust.
 | `JWT_SECRET` | Sign session cookies — **production: required, ≥32 chars, not a placeholder** |
 | `COOKIE_DOMAIN` | Optional cookie domain for cross-subdomain auth (example: `.alrusco.com`) |
 | `ALLOW_BOOTSTRAP` | `true` only once for first admin in production; then unset |
+| `ALLOW_ADMIN_ENV_INIT` | `true` to allow env-driven initial admin creation when the DB is empty; keep `false` after setup |
+| `DATA_DIR` | Optional storage directory for SQLite + uploads (default: repo-root `./data`); deterministic so cwd changes (pm2/unRAID) don't affect auth/db |
 | `ENABLE_HSTS` | `true` if the app is always reached via HTTPS (sends Strict-Transport-Security) |
 | `JSON_BODY_LIMIT` | Max JSON body size (default `512kb`) |
 | `GLOBAL_RATE_LIMIT_MAX` | Requests per IP per 15 min for most routes (default `1200`; skips health, `proxy-check`, favicon, `/assets/*` GETs) |
@@ -140,6 +144,7 @@ If you terminate TLS in Nginx, Caddy, or Nginx Proxy Manager, point traffic to t
 
 - **Secrets:** Strong `JWT_SECRET`; `CREDENTIALS_ENCRYPTION_KEY` if you store a GitHub PAT in Settings; never commit `.env`.
 - **Bootstrap:** Keep `ALLOW_BOOTSTRAP` unset except for the very first admin user on a new deploy.
+- **Env admin init:** If you use `ADMIN_USERNAME`/`ADMIN_PASSWORD` with `ALLOW_ADMIN_ENV_INIT=true`, set it back to `false` after setup (and keep `ALLOW_BOOTSTRAP` unset).
 - **Headers:** Helmet is enabled with a **Content-Security-Policy** tuned for this SPA (same-origin scripts/assets, WebGL Earth + OSM tiles, dashboard Simple Icons CDN, and **Google Analytics domains** that WebGL Earth’s script loads, `blob:`/`data:` where needed). Set **`CSP_DISABLE=true`** only if you must debug a blocked resource. Optionally set **`ENABLE_HSTS=true`** once HTTPS is correct end-to-end.
 - **Rich text:** User-editable HTML (projects body, descriptions, home copy) is sanitized with **sanitize-html** (allow-list tags/attributes; safe link schemes).
 - **Uploads:** JPEG/PNG/WebP/GIF/HEIC only; content is checked with **sharp** (blocks mismatched / hostile types such as SVG-as-image).

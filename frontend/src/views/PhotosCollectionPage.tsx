@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { PhotoEditModal } from '../ui/PhotoEditModal'
+import { PhotoImageEditModal } from '../ui/PhotoImageEditModal'
 import {
   imageFilesFromDataTransfer,
   isProbablyFileDrag,
@@ -58,6 +59,12 @@ export function PhotosCollectionPage() {
   const [viewerIndex, setViewerIndex] = useState<number | null>(null)
   const [editModalOpen, setEditModalOpen] = useState(false)
   const [editingPhoto, setEditingPhoto] = useState<EditPhoto | null>(null)
+  const [imageEditOpen, setImageEditOpen] = useState(false)
+  const [imageEditTarget, setImageEditTarget] = useState<{
+    id: number
+    url: string
+    title: string
+  } | null>(null)
   const [uploadBusy, setUploadBusy] = useState(false)
   const [uploadNotice, setUploadNotice] = useState<string | null>(null)
   const [dropActive, setDropActive] = useState(false)
@@ -196,6 +203,12 @@ export function PhotosCollectionPage() {
   function openEdit(p: Photo) {
     setEditingPhoto({ ...p, albums: [] })
     setEditModalOpen(true)
+    setViewerIndex(null)
+  }
+
+  function openImageEdit(p: Photo) {
+    setImageEditTarget({ id: p.id, url: p.url, title: p.title })
+    setImageEditOpen(true)
     setViewerIndex(null)
   }
 
@@ -353,7 +366,14 @@ export function PhotosCollectionPage() {
                       }
                       setViewerIndex(index)
                     }}
-                    aria-label={editCoversOpen ? `Toggle cover: ${p.title}` : `View ${p.title}`}
+                    title={p.description?.trim() || undefined}
+                    aria-label={
+                      editCoversOpen
+                        ? `Toggle cover: ${p.title}`
+                        : p.description?.trim()
+                          ? `View ${p.title}. ${p.description.trim()}`
+                          : `View ${p.title}`
+                    }
                   >
                     <img src={p.url} alt="" loading="lazy" />
                     {editCoversOpen && user && (
@@ -398,13 +418,22 @@ export function PhotosCollectionPage() {
                 {viewerIndex! + 1} / {photos.length}
               </span>
               {user && !authLoading && (
-                <button
-                  type="button"
-                  className="fb-lightbox-icon-btn"
-                  onClick={() => openEdit(viewerPhoto)}
-                >
-                  Edit
-                </button>
+                <div className="fb-lightbox-topbar-actions">
+                  <button
+                    type="button"
+                    className="fb-lightbox-icon-btn"
+                    onClick={() => openImageEdit(viewerPhoto)}
+                  >
+                    Edit image
+                  </button>
+                  <button
+                    type="button"
+                    className="fb-lightbox-icon-btn"
+                    onClick={() => openEdit(viewerPhoto)}
+                  >
+                    Edit
+                  </button>
+                </div>
               )}
             </div>
             <div className="fb-lightbox-stage">
@@ -485,6 +514,24 @@ export function PhotosCollectionPage() {
           onChanged={() => {
             setEditModalOpen(false)
             setEditingPhoto(null)
+            void load()
+          }}
+        />
+      )}
+
+      {user && !authLoading && imageEditTarget && (
+        <PhotoImageEditModal
+          open={imageEditOpen}
+          photoId={imageEditTarget.id}
+          photoUrl={imageEditTarget.url}
+          photoTitle={imageEditTarget.title}
+          onClose={() => {
+            setImageEditOpen(false)
+            setImageEditTarget(null)
+          }}
+          onSaved={() => {
+            setImageEditOpen(false)
+            setImageEditTarget(null)
             void load()
           }}
         />

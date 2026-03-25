@@ -4,9 +4,10 @@ import rateLimit from "express-rate-limit";
 import cookieParser from "cookie-parser";
 import path from "path";
 import fs from "fs";
+import bcrypt from "bcrypt";
 import publicRoutes from "./routes/public";
 import appsRoutes from "./routes/apps";
-import { initUserStore } from "./auth/userStore";
+import { getDb, getUserCount, initUserStore } from "./auth/userStore";
 import authRoutes from "./auth/authRoutes";
 import weatherRoutes from "./routes/weather";
 import projectsRoutes from "./routes/projects";
@@ -22,6 +23,7 @@ import adminIntegrationsGithubRoutes from "./routes/adminIntegrationsGithub";
 import { assertProductionSecurity } from "./config/securityEnv";
 import { lanApps } from "./config/lanApps";
 import { assertLanAppsInternalUrls } from "./utils/appRedirectAllowlist";
+import { getAuthDbPath, getDataDir, getUploadsRoot } from "./utils/dataDir";
 
 const app = express();
 const PORT = process.env.PORT || 3077;
@@ -125,7 +127,7 @@ app.use("/api/admin/integrations/github", adminIntegrationsGithubRoutes);
 app.use("/apps", appsRoutes);
 
 // Serve uploaded assets (e.g., photos) from the data/uploads directory
-const uploadsRoot = path.join(process.cwd(), "data", "uploads");
+const uploadsRoot = getUploadsRoot();
 if (!fs.existsSync(uploadsRoot)) {
   fs.mkdirSync(uploadsRoot, { recursive: true });
 }
@@ -164,10 +166,84 @@ async function start() {
   assertProductionSecurity();
   assertLanAppsInternalUrls(lanApps);
 
-  if (!fs.existsSync(path.join(process.cwd(), "data"))) {
-    fs.mkdirSync(path.join(process.cwd(), "data"), { recursive: true });
+  const dataDir = getDataDir();
+  const authDbPath = getAuthDbPath();
+  const allowAdminEnvInit = process.env.ALLOW_ADMIN_ENV_INIT === "true";
+
+  // eslint-disable-next-line no-console
+  console.info(
+    `[startup] DATA_DIR=${dataDir} authDb=${authDbPath} ALLOW_ADMIN_ENV_INIT=${allowAdminEnvInit}`,
+  );
+
+  if (!fs.existsSync(dataDir)) {
+    fs.mkdirSync(dataDir, { recursive: true });
   }
   await initUserStore();
+
+  // If this is a fresh install and you provided env credentials, create an initial admin.
+  // We intentionally do NOT set `totp_secret` yet; the first successful login will show a QR
+  // and complete enrollment.
+  const userCount = await getUserCount();
+  if (userCount === 0) {
+    if (!allowAdminEnvInit) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        "[auth] Admin env init is disabled. Provide an admin via POST /api/auth/bootstrap (with ALLOW_BOOTSTRAP) or POST /api/auth/reset-admin-credentials.",
+      );
+      // Continue startup without creating an admin. (Login will fail until an admin exists.)
+    }
+
+    const username = process.env.ADMIN_USERNAME?.trim();
+    const password = process.env.ADMIN_PASSWORD;
+
+    const MAX_AUTH_USERNAME_LEN = 128;
+    const MAX_AUTH_PASSWORD_LEN = 512;
+    const MIN_ADMIN_PASSWORD_LEN = 12;
+
+    if (username && password) {
+      if (!username || username.length > MAX_AUTH_USERNAME_LEN) {
+        throw new Error(
+          `ADMIN_USERNAME must be <= ${MAX_AUTH_USERNAME_LEN} characters.`,
+        );
+      }
+      if (password.length > MAX_AUTH_PASSWORD_LEN) {
+        throw new Error(
+          `ADMIN_PASSWORD must be <= ${MAX_AUTH_PASSWORD_LEN} characters.`,
+        );
+      }
+      if (password.length < MIN_ADMIN_PASSWORD_LEN) {
+        throw new Error(
+          `ADMIN_PASSWORD must be >= ${MIN_ADMIN_PASSWORD_LEN} characters.`,
+        );
+      }
+
+      const db = await getDb();
+      const passwordHash = await bcrypt.hash(password, 12);
+      const createdAt = new Date().toISOString();
+
+      await db.run(
+        "INSERT INTO users (username, password_hash, totp_secret, created_at) VALUES (?, ?, ?, ?)",
+        username,
+        passwordHash,
+        null,
+        createdAt,
+      );
+
+      // eslint-disable-next-line no-console
+      console.info(
+        `[auth] Initial admin created from ADMIN_USERNAME/ADMIN_PASSWORD. On first sign-in you'll scan a TOTP QR to finish setup.`,
+      );
+    } else if (username || password) {
+      throw new Error(
+        "ADMIN_USERNAME and ADMIN_PASSWORD must both be set (or both unset).",
+      );
+    } else {
+      // eslint-disable-next-line no-console
+      console.info(
+        "[auth] No initial admin env vars provided. Use POST /api/auth/bootstrap (with ALLOW_BOOTSTRAP) or /api/auth/reset-admin-credentials to create an admin.",
+      );
+    }
+  }
 
   app.listen(PORT, () => {
     console.log(`Server listening on port ${PORT}`);

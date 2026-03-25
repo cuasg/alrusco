@@ -426,7 +426,10 @@ export function PhotoEditModal({
             />
           </label>
           <label>
-            Description (optional)
+            Caption (optional)
+            <span className="field-hint">
+              Shown as hover text on the album grid and as the comment under the image in the viewer.
+            </span>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}

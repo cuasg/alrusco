@@ -2,6 +2,19 @@
  * Validates environment for production deployments.
  * Call from server startup before listening.
  */
+
+/**
+ * One-time / emergency admin reset. When set (min 24 chars), POST /api/auth/reset-admin-credentials
+ * can replace all users with a new admin + fresh TOTP. Remove from env after use.
+ */
+export function getAdminCredentialResetSecret(): string | undefined {
+  const s = process.env.ADMIN_CREDENTIAL_RESET_SECRET?.trim();
+  if (!s || s.length < 24) {
+    return undefined;
+  }
+  return s;
+}
+
 export function assertProductionSecurity(): void {
   if (process.env.NODE_ENV !== "production") {
     return;
@@ -37,6 +50,13 @@ export function assertProductionSecurity(): void {
     // eslint-disable-next-line no-console
     console.warn(
       "[security] TRUST_PROXY_HOPS resolves to an invalid or zero value; rate limiting and req.ip may be wrong behind a reverse proxy. Set TRUST_PROXY_HOPS=1 (or your hop count).",
+    );
+  }
+
+  if (getAdminCredentialResetSecret()) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      "[security] ADMIN_CREDENTIAL_RESET_SECRET is set: emergency admin reset is enabled. Remove it after resetting credentials.",
     );
   }
 }

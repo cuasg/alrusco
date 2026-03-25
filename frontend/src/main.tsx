@@ -5,8 +5,11 @@ import dotlottieWasmUrl from '@lottiefiles/dotlottie-web/dotlottie-player.wasm?u
 import './index.css'
 import App from './App.tsx'
 import { AuthProvider } from './hooks/useAuth.tsx'
+import { applyTheme, resolveInitialTheme } from './lib/theme'
 
 setWasmUrl(dotlottieWasmUrl)
+
+applyTheme(resolveInitialTheme())
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

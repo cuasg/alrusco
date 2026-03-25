@@ -1,17 +1,22 @@
 import { Router, type Response } from "express";
+import crypto from "crypto";
 import bcrypt from "bcrypt";
 import jwt, { JwtPayload } from "jsonwebtoken";
 import { generateSecret, generateURI, verify } from "otplib";
 import rateLimit from "express-rate-limit";
 import { getUserCount, getDb } from "./userStore";
 import { requireAuth } from "./authMiddleware";
-import { isBootstrapAllowed } from "../config/securityEnv";
+import {
+  getAdminCredentialResetSecret,
+  isBootstrapAllowed,
+} from "../config/securityEnv";
 import { jwtVerifyOptions } from "./jwtVerifyOptions";
 
 const router = Router();
 
 const MAX_AUTH_USERNAME_LEN = 128;
 const MAX_AUTH_PASSWORD_LEN = 512;
+const MIN_ADMIN_PASSWORD_LEN = 12;
 const MAX_TEMP_JWT_CHARS = 4096;
 const MAX_TOTP_CODE_CHARS = 32;
 
@@ -90,6 +95,89 @@ const extendSessionLimiter = rateLimit({
   message: { error: "too many session extensions, try again later" },
 });
 
+function timingSafeResetSecretEqual(a: string, b: string): boolean {
+  const ah = crypto.createHash("sha256").update(a, "utf8").digest();
+  const bh = crypto.createHash("sha256").update(b, "utf8").digest();
+  return crypto.timingSafeEqual(ah, bh);
+}
+
+/**
+ * Replace all users with a new admin (new password + new TOTP secret).
+ * Enabled only when ADMIN_CREDENTIAL_RESET_SECRET is set in the environment (min 24 chars).
+ * Remove the env var after use.
+ */
+router.post("/reset-admin-credentials", authAttemptLimiter, async (req, res) => {
+  const configuredSecret = getAdminCredentialResetSecret();
+  if (!configuredSecret) {
+    return res.status(404).json({ error: "not found" });
+  }
+
+  const { resetSecret, username, password } = req.body as {
+    resetSecret?: string;
+    username?: string;
+    password?: string;
+  };
+
+  if (!resetSecret || !username || !password) {
+    return res.status(400).json({
+      error: "resetSecret, username, and password required",
+    });
+  }
+
+  if (!timingSafeResetSecretEqual(resetSecret, configuredSecret)) {
+    return res.status(404).json({ error: "not found" });
+  }
+
+  if (
+    username.length > MAX_AUTH_USERNAME_LEN ||
+    password.length > MAX_AUTH_PASSWORD_LEN
+  ) {
+    return res.status(400).json({ error: "invalid input" });
+  }
+
+  if (password.length < MIN_ADMIN_PASSWORD_LEN) {
+    return res.status(400).json({
+      error: `password too short (min ${MIN_ADMIN_PASSWORD_LEN} chars)`,
+    });
+  }
+
+  const db = await getDb();
+  const passwordHash = await bcrypt.hash(password, 12);
+  const totpSecret = await generateSecret();
+  const createdAt = new Date().toISOString();
+
+  try {
+    await db.exec("BEGIN");
+    await db.run("DELETE FROM users");
+    await db.run(
+      "INSERT INTO users (username, password_hash, totp_secret, created_at) VALUES (?, ?, ?, ?)",
+      username.trim(),
+      passwordHash,
+      totpSecret,
+      createdAt,
+    );
+    await db.exec("COMMIT");
+  } catch (err) {
+    await db.exec("ROLLBACK").catch(() => {});
+    // eslint-disable-next-line no-console
+    console.error("[auth] reset-admin-credentials failed", err);
+    return res.status(500).json({ error: "failed to reset credentials" });
+  }
+
+  const otpauth = generateURI({
+    strategy: "totp",
+    issuer: "alrusco",
+    label: username.trim(),
+    secret: totpSecret,
+  });
+
+  return res.json({
+    message:
+      "Admin credentials reset. Add this otpauth URI to your authenticator app, then sign in with your new username and password.",
+    otpauth,
+  });
+});
+
 router.post("/bootstrap", async (req, res) => {
   if (!isBootstrapAllowed()) {
     return res.status(404).json({ error: "not found" });
@@ -163,6 +251,7 @@ router.post("/login", authAttemptLimiter, async (req, res) => {
     username: string;
     password_hash: string;
     totp_secret: string | null;
+    last_login: string | null;
   }>("SELECT * FROM users WHERE username = ?", username);
 
   if (!user) {
@@ -180,7 +269,30 @@ router.post("/login", authAttemptLimiter, async (req, res) => {
     { expiresIn: "5m", algorithm: "HS256" },
   );
 
-  res.json({ tempToken });
+  const needsTotpSetup = !user.totp_secret || !user.last_login;
+  let otpauth: string | undefined;
+
+  if (needsTotpSetup) {
+    let secret = user.totp_secret;
+    if (!secret) {
+      secret = await generateSecret();
+      await db.run("UPDATE users SET totp_secret = ? WHERE id = ?", [
+        secret,
+        user.id,
+      ]);
+    }
+
+    otpauth = generateURI({
+      strategy: "totp",
+      issuer: "alrusco",
+      label: user.username.trim(),
+      secret,
+    });
+  }
+
+  // If `otpauth` is present, the frontend should render a QR code and instruct the user
+  // to scan it before entering the 6-digit code.
+  res.json({ tempToken, ...(otpauth ? { otpauth } : {}) });
 });
 
 router.post("/verify-totp", authAttemptLimiter, async (req, res) => {

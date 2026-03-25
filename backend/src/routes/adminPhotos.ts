@@ -6,6 +6,7 @@ import { Router } from "express";
 import { getDb } from "../auth/userStore";
 import { requireAuth } from "../auth/authMiddleware";
 import { sanitizeTextForDisplay } from "../utils/sanitize";
+import { getUploadsRoot } from "../utils/dataDir";
 
 const router = Router();
 
@@ -132,7 +133,7 @@ function validatePhotoPayload(payload: PhotoInput, isUpdate: boolean) {
   return errors;
 }
 
-const UPLOAD_ROOT = path.join(process.cwd(), "data", "uploads");
+const UPLOAD_ROOT = getUploadsRoot();
 const UPLOAD_ORIGINAL_DIR = path.join(UPLOAD_ROOT, "originals");
 const UPLOAD_WEB_DIR = path.join(UPLOAD_ROOT, "photos");
 
@@ -766,6 +767,212 @@ router.put("/collection-covers", async (req, res) => {
     return res.status(500).json({ error: "failed to update collection covers" });
   }
 });
+
+function safeUnlinkPhotosWebFile(webUrl: string): void {
+  if (!webUrl.startsWith("/uploads/photos/")) return;
+  const rel = webUrl.slice("/uploads/photos/".length);
+  if (!rel || rel.includes("..") || rel.includes("/") || rel.includes("\\")) return;
+  const full = path.join(UPLOAD_WEB_DIR, rel);
+  fs.unlink(full, () => {});
+}
+
+router.post(
+  "/:id/replace-image",
+  upload.single("file"),
+  async (req, res) => {
+    const photoId = Number.parseInt(String(req.params.id), 10);
+    if (!Number.isInteger(photoId) || photoId <= 0) {
+      return res.status(400).json({ error: "invalid id" });
+    }
+
+    const file = req.file as Express.Multer.File | undefined;
+    if (!file) {
+      return res.status(400).json({ error: "file is required" });
+    }
+
+    try {
+      const db = await getDb();
+      const row = await db.get<{ id: number; url: string }>(
+        "SELECT id, url FROM photos WHERE id = ?",
+        photoId,
+      );
+      if (!row) {
+        await fs.promises.unlink(file.path).catch(() => {});
+        return res.status(404).json({ error: "photo not found" });
+      }
+
+      const previousUrl = row.url;
+      const { webUrl } = await writeWebDerivative(file);
+      await fs.promises.unlink(file.path).catch(() => {});
+
+      if (previousUrl && previousUrl !== webUrl) {
+        safeUnlinkPhotosWebFile(previousUrl);
+      }
+
+      await db.run("UPDATE photos SET url = ? WHERE id = ?", webUrl, photoId);
+
+      return res.json({
+        photo: {
+          id: photoId,
+          url: webUrl,
+        },
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "";
+      if (file.path) {
+        await fs.promises.unlink(file.path).catch(() => {});
+      }
+      if (
+        msg &&
+        (msg.includes("Unsupported") ||
+          msg.includes("Could not read") ||
+          msg.includes("unsafe"))
+      ) {
+        return res.status(400).json({ error: msg });
+      }
+      // eslint-disable-next-line no-console
+      console.error("[admin/photos] replace-image failed", err);
+      return res.status(500).json({ error: "failed to replace image" });
+    }
+  },
+);
+
+router.post(
+  "/:id/duplicate-with-image",
+  upload.single("file"),
+  async (req, res) => {
+    const sourceId = Number.parseInt(String(req.params.id), 10);
+    if (!Number.isInteger(sourceId) || sourceId <= 0) {
+      return res.status(400).json({ error: "invalid id" });
+    }
+
+    const file = req.file as Express.Multer.File | undefined;
+    if (!file) {
+      return res.status(400).json({ error: "file is required" });
+    }
+
+    const titleRaw =
+      typeof req.body?.title === "string" ? req.body.title.trim().slice(0, 200) : "";
+
+    try {
+      const db = await getDb();
+      const source = await db.get<{
+        id: number;
+        title: string;
+        description: string | null;
+        category: string;
+        taken_at: string | null;
+      }>("SELECT id, title, description, category, taken_at FROM photos WHERE id = ?", sourceId);
+
+      if (!source) {
+        await fs.promises.unlink(file.path).catch(() => {});
+        return res.status(404).json({ error: "photo not found" });
+      }
+
+      const { webUrl, originalUrl } = await writeWebDerivative(file);
+
+      const baseTitle = titleRaw || `${source.title} (edited)`;
+      const title = baseTitle.slice(0, 200);
+
+      const descriptionSafe =
+        source.description != null && source.description !== ""
+          ? sanitizeTextForDisplay(source.description)
+          : null;
+
+      const now = new Date().toISOString();
+
+      await db.exec("BEGIN");
+      const ins = await db.run(
+        `
+        INSERT INTO photos (title, description, url, original_url, category, taken_at, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `,
+        title,
+        descriptionSafe,
+        webUrl,
+        originalUrl,
+        source.category.trim(),
+        source.taken_at ?? null,
+        now,
+      );
+
+      const newId = ins.lastID as number;
+
+      const tagRows = await db.all<{ tag: string }[]>(
+        "SELECT tag FROM photo_tags WHERE photo_id = ?",
+        sourceId,
+      );
+      for (const { tag } of tagRows) {
+        // eslint-disable-next-line no-await-in-loop
+        await db.run("INSERT INTO photo_tags (photo_id, tag) VALUES (?, ?)", newId, tag);
+      }
+
+      const albumRows = await db.all<{ album_id: number }[]>(
+        "SELECT album_id FROM photo_albums WHERE photo_id = ?",
+        sourceId,
+      );
+      for (const { album_id } of albumRows) {
+        // eslint-disable-next-line no-await-in-loop
+        await db.run(
+          "INSERT INTO photo_albums (photo_id, album_id) VALUES (?, ?)",
+          newId,
+          album_id,
+        );
+      }
+
+      const projectRows = await db.all<{ project_id: number }[]>(
+        "SELECT project_id FROM photo_projects WHERE photo_id = ?",
+        sourceId,
+      );
+      for (const { project_id } of projectRows) {
+        // eslint-disable-next-line no-await-in-loop
+        await db.run(
+          "INSERT INTO photo_projects (photo_id, project_id) VALUES (?, ?)",
+          newId,
+          project_id,
+        );
+      }
+
+      await db.exec("COMMIT");
+
+      return res.status(201).json({
+        photo: {
+          id: newId,
+          title,
+          description: descriptionSafe,
+          url: webUrl,
+          originalUrl,
+          category: source.category,
+          takenAt: source.taken_at,
+          createdAt: now,
+          tags: tagRows.map((t) => t.tag),
+        },
+      });
+    } catch (err) {
+      try {
+        const db = await getDb();
+        await db.exec("ROLLBACK");
+      } catch {
+        /* ignore */
+      }
+      if (file.path) {
+        await fs.promises.unlink(file.path).catch(() => {});
+      }
+      const msg = err instanceof Error ? err.message : "";
+      if (
+        msg &&
+        (msg.includes("Unsupported") ||
+          msg.includes("Could not read") ||
+          msg.includes("unsafe"))
+      ) {
+        return res.status(400).json({ error: msg });
+      }
+      // eslint-disable-next-line no-console
+      console.error("[admin/photos] duplicate-with-image failed", err);
+      return res.status(500).json({ error: "failed to save duplicate photo" });
+    }
+  },
+);
 
 router.put("/:id", async (req, res) => {
   const { id } = req.params;

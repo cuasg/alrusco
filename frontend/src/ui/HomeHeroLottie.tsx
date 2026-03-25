@@ -4,9 +4,6 @@ import { DotLottieReact } from '@lottiefiles/dotlottie-react'
 const DOTLOTTIE_SRC =
   'https://lottie.host/b11950b3-dce3-4b40-bb1e-ede0894ab66f/VDi80P0yAx.lottie'
 
-const LOTTIE_ATTRIBUTION_URL =
-  'https://lottiefiles.com/free-animation/little-power-robot-BtnSKUJQgN'
-
 /**
  * Hero visual when no banner image is set — Little Power Robot via LottieFiles dotLottie host.
  */
@@ -30,16 +27,6 @@ export function HomeHeroLottie() {
           loop={!reduceMotion}
           autoplay={!reduceMotion}
         />
-      </div>
-      <div className="home-hero-lottie-credits">
-        <a
-          className="home-hero-lottie-credit"
-          href={LOTTIE_ATTRIBUTION_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Little Power Robot (LottieFiles)
-        </a>
       </div>
     </div>
   )

@@ -1,6 +1,7 @@
 import sqlite3 from "sqlite3";
 import path from "path";
 import { open, Database } from "sqlite";
+import { getAuthDbPath } from "../utils/dataDir";
 
 sqlite3.verbose();
 
@@ -18,7 +19,7 @@ let dbPromise: Promise<Database<sqlite3.Database, sqlite3.Statement>> | null =
 
 export function getDb() {
   if (!dbPromise) {
-    const dbPath = path.join(process.cwd(), "data", "auth.db");
+    const dbPath = getAuthDbPath();
     dbPromise = open({
       filename: dbPath,
       driver: sqlite3.Database,

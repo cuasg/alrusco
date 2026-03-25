@@ -6,6 +6,7 @@ import { useAuth } from '../hooks/useAuth'
 import { AccountMenu } from './AccountMenu'
 import { ChangePasswordModal } from './ChangePasswordModal'
 import { SessionExpiryWatcher } from './SessionExpiryWatcher'
+import { ThemeToggle } from './ThemeToggle'
 
 type Props = {
   children: ReactNode
@@ -75,14 +76,14 @@ export function Layout({ children }: Props) {
             <Link to="/" className={navLinkClass('/')}>
               Home
             </Link>
-            <Link to="/projects" className={navLinkClass('/projects')}>
-              Projects
-            </Link>
             <Link to="/portfolio" className={navLinkClass('/portfolio')}>
               Portfolio
             </Link>
             <Link to="/photos" className={navLinkClass('/photos')}>
               Photos
+            </Link>
+            <Link to="/projects" className={navLinkClass('/projects')}>
+              Projects
             </Link>
             {user && (
               <Link to="/dashboard" className={navLinkClass('/dashboard')}>
@@ -92,6 +93,7 @@ export function Layout({ children }: Props) {
           </nav>
 
           <div className="nav-right nav-right-desktop">
+            <ThemeToggle />
             <WeatherBadge />
             {user ? (
               <AccountMenu />
@@ -103,6 +105,7 @@ export function Layout({ children }: Props) {
           </div>
 
           <div className="nav-mobile-bar">
+            <ThemeToggle />
             <WeatherBadge />
             <button
               type="button"
@@ -144,13 +147,6 @@ export function Layout({ children }: Props) {
           </Link>
 
           <Link
-            to="/projects"
-            className={navLinkClass('/projects')}
-            onClick={() => setMobileNavOpen(false)}
-          >
-            Projects
-          </Link>
-          <Link
             to="/portfolio"
             className={navLinkClass('/portfolio')}
             onClick={() => setMobileNavOpen(false)}
@@ -159,6 +155,13 @@ export function Layout({ children }: Props) {
           </Link>
           <Link to="/photos" className={navLinkClass('/photos')} onClick={() => setMobileNavOpen(false)}>
             Photos
+          </Link>
+          <Link
+            to="/projects"
+            className={navLinkClass('/projects')}
+            onClick={() => setMobileNavOpen(false)}
+          >
+            Projects
           </Link>
 
           {user && (

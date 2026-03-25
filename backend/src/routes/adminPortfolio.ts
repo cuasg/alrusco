@@ -14,6 +14,7 @@ import {
   type PortfolioStored,
 } from "../utils/portfolioDefaults";
 import { sanitizePortfolioForPublic } from "../utils/portfolioMerge";
+import { getUploadsRoot } from "../utils/dataDir";
 
 const router = Router();
 
@@ -23,7 +24,7 @@ const MAX_PORTFOLIO_JSON_BYTES = Number(process.env.PORTFOLIO_JSON_LIMIT ?? "400
 const MAX_SECTION_HTML = 120_000;
 const MAX_DISPLAY_NAME = 200;
 
-const UPLOAD_ROOT = path.join(process.cwd(), "data", "uploads");
+const UPLOAD_ROOT = getUploadsRoot();
 const PORTFOLIO_DIR = path.join(UPLOAD_ROOT, "portfolio");
 
 for (const dir of [PORTFOLIO_DIR]) {

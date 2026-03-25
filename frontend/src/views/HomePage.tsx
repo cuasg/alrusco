@@ -172,7 +172,7 @@ export function HomePage() {
         </section>
 
         {/* —— Selected work / systems —— */}
-        <section className="hp-section" aria-labelledby="hp-work-heading">
+        <section id="hp-work" className="hp-section" aria-labelledby="hp-work-heading">
           <h2 id="hp-work-heading" className="hp-section-title">
             Systems I actually run
           </h2>
@@ -275,7 +275,7 @@ export function HomePage() {
         </section>
 
         {/* —— Interests —— */}
-        <section className="hp-section" aria-labelledby="hp-interests-heading">
+        <section id="hp-interests" className="hp-section" aria-labelledby="hp-interests-heading">
           <h2 id="hp-interests-heading" className="hp-section-title">
             Outside of work
           </h2>
