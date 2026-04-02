@@ -63,7 +63,9 @@ function issueSessionCookie(
   res.cookie(COOKIE_NAME, sessionToken, {
     httpOnly: true,
     secure: COOKIE_SECURE,
-    sameSite: "lax",
+    // Strict prevents cross-site top-level GETs from sending the session cookie,
+    // which reduces CSRF-style "drive-by" triggering of sensitive endpoints like /apps/:id.
+    sameSite: "strict",
     domain: COOKIE_DOMAIN,
     path: "/",
     maxAge: durationMs,
@@ -432,7 +434,7 @@ router.post("/logout", (_req, res) => {
   res.clearCookie(COOKIE_NAME, {
     httpOnly: true,
     secure: COOKIE_SECURE,
-    sameSite: "lax",
+    sameSite: "strict",
     domain: COOKIE_DOMAIN,
     path: "/",
   });

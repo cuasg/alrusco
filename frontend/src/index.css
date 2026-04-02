@@ -9,9 +9,9 @@
   /* Dark theme (default) */
   --text: #e5e7eb;
   --text-h: #f9fafb;
-  --text-muted: #9ca3af;
-  --text-secondary: #94a3b8;
-  --text-subtle: #64748b;
+  --text-muted: #a8b0c0;
+  --text-secondary: #b4bcc9;
+  --text-subtle: #7c8798;
   --text-prose: #cbd5e1;
   --text-elevated: #e2e8f0;
   --border: #1f2937;
@@ -118,6 +118,10 @@
   --badge-subtle-bg: rgba(55, 65, 81, 0.8);
   --tag-bg: rgba(31, 41, 55, 0.85);
   --dashboard-logo-bg: rgba(15, 23, 42, 0.9);
+  --rss-card-bg: rgba(30, 41, 59, 0.5);
+  --rss-card-border: rgba(148, 163, 184, 0.22);
+  --rss-summary-fg: #cbd5e1;
+  --field-border: rgba(148, 163, 184, 0.38);
   --fb-lightbox-fg: #ffffff;
   --fb-lightbox-muted: rgba(255, 255, 255, 0.75);
   --focus-outline-blue: #3b82f6;
@@ -247,6 +251,10 @@
   --badge-subtle-bg: rgba(148, 163, 184, 0.25);
   --tag-bg: rgba(226, 232, 240, 0.95);
   --dashboard-logo-bg: rgba(255, 255, 255, 0.95);
+  --rss-card-bg: #ffffff;
+  --rss-card-border: rgba(15, 23, 42, 0.12);
+  --rss-summary-fg: #334155;
+  --field-border: rgba(15, 23, 42, 0.16);
   --fb-lightbox-fg: #ffffff;
   --fb-lightbox-muted: rgba(255, 255, 255, 0.75);
   --focus-outline-blue: #2563eb;

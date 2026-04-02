@@ -1,6 +1,7 @@
 import { getDb } from "../auth/userStore";
 import { ensureUniqueSlug, slugifyTitle } from "../utils/projectSlug";
 import { getResolvedGithubCredentials } from "./githubCredentials";
+import { getRuntimeIntegrationsResolved } from "./runtimeIntegrations";
 
 type GithubRepo = {
   id: number;
@@ -16,17 +17,6 @@ type GithubRepo = {
   topics?: string[];
 };
 
-const DEFAULT_UA =
-  process.env.GITHUB_API_USER_AGENT || "AlruscoPortfolio/1.0 (github sync)";
-
-function excludeForks(): boolean {
-  return process.env.GITHUB_SYNC_EXCLUDE_FORKS !== "false";
-}
-
-function excludeArchived(): boolean {
-  return process.env.GITHUB_SYNC_EXCLUDE_ARCHIVED !== "false";
-}
-
 function parseLinkNext(linkHeader: string | null): string | null {
   if (!linkHeader) return null;
   const parts = linkHeader.split(",");
@@ -37,10 +27,14 @@ function parseLinkNext(linkHeader: string | null): string | null {
   return null;
 }
 
-async function githubFetch(url: string, token: string | null): Promise<Response> {
+async function githubFetch(
+  url: string,
+  token: string | null,
+  userAgent: string,
+): Promise<Response> {
   const headers: Record<string, string> = {
     Accept: "application/vnd.github+json",
-    "User-Agent": DEFAULT_UA,
+    "User-Agent": userAgent,
     "X-GitHub-Api-Version": "2022-11-28",
   };
   if (token) {
@@ -52,6 +46,7 @@ async function githubFetch(url: string, token: string | null): Promise<Response>
 async function fetchAllRepos(
   baseListUrl: string,
   token: string | null,
+  userAgent: string,
 ): Promise<GithubRepo[]> {
   const all: GithubRepo[] = [];
   let next: string | null = baseListUrl;
@@ -59,7 +54,7 @@ async function fetchAllRepos(
 
   while (next && guard < 30) {
     guard += 1;
-    const res = await githubFetch(next, token);
+    const res = await githubFetch(next, token, userAgent);
     const text = await res.text();
     let data: unknown;
     try {
@@ -93,6 +88,7 @@ export type SyncGithubResult = {
 
 export async function syncGithubProjects(): Promise<SyncGithubResult> {
   const { owner, ownerKind, token } = await getResolvedGithubCredentials();
+  const runtime = await getRuntimeIntegrationsResolved();
 
   if (!owner) {
     throw new Error(
@@ -106,11 +102,11 @@ export async function syncGithubProjects(): Promise<SyncGithubResult> {
       ? `https://api.github.com/orgs/${encodeURIComponent(owner)}/repos?per_page=${perPage}&sort=pushed`
       : `https://api.github.com/users/${encodeURIComponent(owner)}/repos?per_page=${perPage}&sort=pushed`;
 
-  const repos = await fetchAllRepos(baseUrl, token);
+  const repos = await fetchAllRepos(baseUrl, token, runtime.githubApiUserAgent);
 
   const filtered = repos.filter((r) => {
-    if (excludeForks() && r.fork) return false;
-    if (excludeArchived() && r.archived) return false;
+    if (runtime.githubSyncExcludeForks && r.fork) return false;
+    if (runtime.githubSyncExcludeArchived && r.archived) return false;
     return true;
   });
 

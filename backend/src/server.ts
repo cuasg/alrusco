@@ -14,16 +14,26 @@ import projectsRoutes from "./routes/projects";
 import photosRoutes from "./routes/photos";
 import homeRoutes from "./routes/home";
 import portfolioPublicRoutes from "./routes/portfolioPublic";
+import dashboardPublicRoutes from "./routes/dashboardPublic";
+import rssPublicRoutes from "./routes/rssPublic";
+import marketRoutes from "./routes/market";
 import adminProjectsRoutes from "./routes/adminProjects";
 import adminPhotosRoutes from "./routes/adminPhotos";
 import adminAlbumsRoutes from "./routes/adminAlbums";
 import adminHomeRoutes from "./routes/adminHome";
 import adminPortfolioRoutes from "./routes/adminPortfolio";
 import adminIntegrationsGithubRoutes from "./routes/adminIntegrationsGithub";
+import adminIntegrationsRuntimeRoutes from "./routes/adminIntegrationsRuntime";
+import adminSecurityBriefRoutes from "./routes/adminSecurityBrief";
+import adminDashboardRoutes from "./routes/adminDashboard";
+import adminRssRoutes from "./routes/adminRss";
+import adminNotesRoutes from "./routes/adminNotes";
+import adminAiRoutes from "./routes/adminAi";
 import { assertProductionSecurity } from "./config/securityEnv";
 import { lanApps } from "./config/lanApps";
 import { assertLanAppsInternalUrls } from "./utils/appRedirectAllowlist";
 import { getAuthDbPath, getDataDir, getUploadsRoot } from "./utils/dataDir";
+import { ensureEncryptionKeyConfigured } from "./services/githubCredentials";
 
 const app = express();
 const PORT = process.env.PORT || 3077;
@@ -53,13 +63,8 @@ app.use(
             // wasm-unsafe-eval: required for @lottiefiles/dotlottie-web (WASM player), without full unsafe-eval.
             scriptSrc: ["'self'", "'wasm-unsafe-eval'"],
             styleSrc: ["'self'", "'unsafe-inline'"],
-            imgSrc: [
-              "'self'",
-              "https://cdn.simpleicons.org",
-              "https://openweathermap.org",
-              "data:",
-              "blob:",
-            ],
+            // RSS cards and other embeds load thumbnails from arbitrary publisher/CDN hosts (`https:`).
+            imgSrc: ["'self'", "https:", "data:", "blob:"],
             connectSrc: ["'self'", "https://lottie.host"],
             fontSrc: ["'self'"],
             objectSrc: ["'none'"],
@@ -72,8 +77,9 @@ app.use(
     crossOriginOpenerPolicy: { policy: "same-origin" },
     originAgentCluster: true,
     referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+    // HSTS is opt-in via ENABLE_HSTS so mis-set NODE_ENV can't silently disable it.
     hsts:
-      isProd && process.env.ENABLE_HSTS === "true"
+      process.env.ENABLE_HSTS === "true"
         ? { maxAge: 31536000, includeSubDomains: true, preload: false }
         : false,
   }),
@@ -107,6 +113,15 @@ const limiter = rateLimit({
 
 app.use(limiter);
 
+// Prevent caches from storing authenticated responses (admin/settings/auth).
+app.use((req, res, next) => {
+  const p = req.path;
+  if (p.startsWith("/api/admin") || p.startsWith("/api/auth")) {
+    res.setHeader("Cache-Control", "no-store");
+  }
+  next();
+});
+
 app.get("/api/health", (_req, res) => {
   res.json({ status: "ok" });
 });
@@ -116,14 +131,23 @@ app.use("/api/auth", authRoutes);
 app.use("/api/weather", weatherRoutes);
 app.use("/api/projects", projectsRoutes);
 app.use("/api/photos", photosRoutes);
+app.use("/api/rss", rssPublicRoutes);
+app.use("/api/market", marketRoutes);
 app.use("/api/public/home", homeRoutes);
+app.use("/api/public/dashboard", dashboardPublicRoutes);
 app.use("/api/public/portfolio", portfolioPublicRoutes);
 app.use("/api/admin/projects", adminProjectsRoutes);
 app.use("/api/admin/photos", adminPhotosRoutes);
 app.use("/api/admin/albums", adminAlbumsRoutes);
 app.use("/api/admin/home", adminHomeRoutes);
+app.use("/api/admin/dashboard", adminDashboardRoutes);
 app.use("/api/admin/portfolio", adminPortfolioRoutes);
 app.use("/api/admin/integrations/github", adminIntegrationsGithubRoutes);
+app.use("/api/admin/integrations/runtime", adminIntegrationsRuntimeRoutes);
+app.use("/api/admin/security", adminSecurityBriefRoutes);
+app.use("/api/admin/rss", adminRssRoutes);
+app.use("/api/admin/notes", adminNotesRoutes);
+app.use("/api/admin/ai", adminAiRoutes);
 app.use("/apps", appsRoutes);
 
 // Serve uploaded assets (e.g., photos) from the data/uploads directory
@@ -179,6 +203,7 @@ async function start() {
     fs.mkdirSync(dataDir, { recursive: true });
   }
   await initUserStore();
+  await ensureEncryptionKeyConfigured();
 
   // If this is a fresh install and you provided env credentials, create an initial admin.
   // We intentionally do NOT set `totp_secret` yet; the first successful login will show a QR

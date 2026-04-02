@@ -481,7 +481,7 @@ export function PhotosCollectionPage() {
                   download
                   className="fb-lightbox-download"
                   target="_blank"
-                  rel="noreferrer"
+                  rel="noopener noreferrer"
                 >
                   Download original
                 </a>

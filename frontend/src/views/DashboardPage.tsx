@@ -57,8 +57,8 @@ export function DashboardPage() {
   return (
     <section className="page dashboard-page">
       <header className="page-header">
-        <h1>Apps dashboard</h1>
-        <p>After signing in, you can securely reach internal tools via this dashboard.</p>
+        <h1>Links</h1>
+        <p>After signing in, you can securely open your internal service links from here.</p>
       </header>
       <div className="cards-grid">
         {lanApps.map((app) => (
@@ -67,7 +67,7 @@ export function DashboardPage() {
               className="dashboard-app-card-link"
               href={`/apps/${app.id}`}
               target="_blank"
-              rel="noreferrer"
+              rel="noopener noreferrer"
             >
               <div className="dashboard-app-card-row">
                 <div className="dashboard-app-logo-wrap">

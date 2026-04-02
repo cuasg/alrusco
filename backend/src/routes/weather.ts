@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import { Router } from "express";
 import fetch from "node-fetch";
+import { getRuntimeIntegrationsResolved } from "../services/runtimeIntegrations";
 
 type WeatherPayload = {
   temperature: number;
@@ -116,6 +117,45 @@ function resolveLocation(req: Request): ResolvedLocation | null {
   return { lat, lon, cacheKey: `${lat}:${lon}` };
 }
 
+async function resolveLocationWithRuntime(req: Request): Promise<ResolvedLocation | null> {
+  const rt = await getRuntimeIntegrationsResolved();
+  const queryLat = req.query.lat;
+  const queryLon = req.query.lon;
+
+  const latFromQuery =
+    typeof queryLat === "string"
+      ? queryLat
+      : Array.isArray(queryLat)
+        ? String(queryLat[0])
+        : undefined;
+  const lonFromQuery =
+    typeof queryLon === "string"
+      ? queryLon
+      : Array.isArray(queryLon)
+        ? String(queryLon[0])
+        : undefined;
+
+  const latStr = rt.weatherFixedLocation ? rt.weatherLat : latFromQuery ?? rt.weatherLat;
+  const lonStr = rt.weatherFixedLocation ? rt.weatherLon : lonFromQuery ?? rt.weatherLon;
+  if (!latStr || !lonStr) return resolveLocation(req);
+
+  const latNum = parseCoord(latStr);
+  const lonNum = parseCoord(lonStr);
+  if (
+    latNum == null ||
+    lonNum == null ||
+    latNum < -90 ||
+    latNum > 90 ||
+    lonNum < -180 ||
+    lonNum > 180
+  ) {
+    return null;
+  }
+  const lat = String(latNum);
+  const lon = String(lonNum);
+  return { lat, lon, cacheKey: `${lat}:${lon}` };
+}
+
 function weekdayShortFromYmd(ymd: string): string {
   const parts = ymd.split("-").map(Number);
   if (parts.length !== 3 || parts.some((n) => !Number.isFinite(n))) {
@@ -172,12 +212,13 @@ function localYmdFromForecastDt(dtUtc: number, timezoneSec: number): string {
 
 router.get("/", async (req: Request, res: Response) => {
   try {
-    const apiKey = process.env.WEATHER_API_KEY;
+    const runtime = await getRuntimeIntegrationsResolved();
+    const apiKey = runtime.weatherApiKey ?? process.env.WEATHER_API_KEY;
     if (!apiKey) {
       return res.status(503).json({ error: "weather not configured" });
     }
 
-    const loc = resolveLocation(req);
+    const loc = await resolveLocationWithRuntime(req);
     if (!loc) {
       return res.status(503).json({ error: "weather location not configured" });
     }
@@ -252,12 +293,13 @@ router.get("/", async (req: Request, res: Response) => {
 
 router.get("/forecast", async (req: Request, res: Response) => {
   try {
-    const apiKey = process.env.WEATHER_API_KEY;
+    const runtime = await getRuntimeIntegrationsResolved();
+    const apiKey = runtime.weatherApiKey ?? process.env.WEATHER_API_KEY;
     if (!apiKey) {
       return res.status(503).json({ error: "weather not configured" });
     }
 
-    const loc = resolveLocation(req);
+    const loc = await resolveLocationWithRuntime(req);
     if (!loc) {
       return res.status(503).json({ error: "weather location not configured" });
     }

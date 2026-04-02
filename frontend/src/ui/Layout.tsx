@@ -5,6 +5,7 @@ import { WeatherBadge } from './WeatherBadge'
 import { useAuth } from '../hooks/useAuth'
 import { AccountMenu } from './AccountMenu'
 import { ChangePasswordModal } from './ChangePasswordModal'
+import { NotesModal } from './NotesModal'
 import { SessionExpiryWatcher } from './SessionExpiryWatcher'
 import { ThemeToggle } from './ThemeToggle'
 
@@ -18,6 +19,7 @@ export function Layout({ children }: Props) {
   const { user, refresh } = useAuth()
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [mobilePwdOpen, setMobilePwdOpen] = useState(false)
+  const [notesOpen, setNotesOpen] = useState(false)
   const [loggingOut, setLoggingOut] = useState(false)
 
   const navLinkClass = (path: string) =>
@@ -44,6 +46,10 @@ export function Layout({ children }: Props) {
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [mobileNavOpen])
+
+  useEffect(() => {
+    if (!user) setNotesOpen(false)
+  }, [user])
 
   async function handleMobileLogout() {
     if (loggingOut) return
@@ -79,15 +85,18 @@ export function Layout({ children }: Props) {
             <Link to="/portfolio" className={navLinkClass('/portfolio')}>
               Portfolio
             </Link>
-            <Link to="/photos" className={navLinkClass('/photos')}>
-              Photos
-            </Link>
             <Link to="/projects" className={navLinkClass('/projects')}>
               Projects
             </Link>
+            <Link to="/photos" className={navLinkClass('/photos')}>
+              Photos
+            </Link>
+            <Link to="/about" className={navLinkClass('/about')}>
+              About
+            </Link>
             {user && (
-              <Link to="/dashboard" className={navLinkClass('/dashboard')}>
-                Dashboard
+              <Link to="/links" className={navLinkClass('/links')}>
+                Links
               </Link>
             )}
           </nav>
@@ -95,6 +104,34 @@ export function Layout({ children }: Props) {
           <div className="nav-right nav-right-desktop">
             <ThemeToggle />
             <WeatherBadge />
+            {user && (
+              <button
+                type="button"
+                className={`nav-notes-btn${notesOpen ? ' nav-notes-btn--open' : ''}`}
+                aria-label="Notes"
+                title="Notes"
+                aria-expanded={notesOpen}
+                onClick={() => setNotesOpen((o) => !o)}
+              >
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.75"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden
+                >
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                  <line x1="16" y1="13" x2="8" y2="13" />
+                  <line x1="16" y1="17" x2="8" y2="17" />
+                  <line x1="10" y1="9" x2="8" y2="9" />
+                </svg>
+              </button>
+            )}
             {user ? (
               <AccountMenu />
             ) : (
@@ -107,6 +144,34 @@ export function Layout({ children }: Props) {
           <div className="nav-mobile-bar">
             <ThemeToggle />
             <WeatherBadge />
+            {user && (
+              <button
+                type="button"
+                className={`nav-notes-btn${notesOpen ? ' nav-notes-btn--open' : ''}`}
+                aria-label="Notes"
+                title="Notes"
+                aria-expanded={notesOpen}
+                onClick={() => setNotesOpen((o) => !o)}
+              >
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.75"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden
+                >
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                  <line x1="16" y1="13" x2="8" y2="13" />
+                  <line x1="16" y1="17" x2="8" y2="17" />
+                  <line x1="10" y1="9" x2="8" y2="9" />
+                </svg>
+              </button>
+            )}
             <button
               type="button"
               className="nav-burger"
@@ -145,16 +210,12 @@ export function Layout({ children }: Props) {
           <Link to="/" className={navLinkClass('/')} onClick={() => setMobileNavOpen(false)}>
             Home
           </Link>
-
           <Link
             to="/portfolio"
             className={navLinkClass('/portfolio')}
             onClick={() => setMobileNavOpen(false)}
           >
             Portfolio
-          </Link>
-          <Link to="/photos" className={navLinkClass('/photos')} onClick={() => setMobileNavOpen(false)}>
-            Photos
           </Link>
           <Link
             to="/projects"
@@ -163,14 +224,24 @@ export function Layout({ children }: Props) {
           >
             Projects
           </Link>
+          <Link to="/photos" className={navLinkClass('/photos')} onClick={() => setMobileNavOpen(false)}>
+            Photos
+          </Link>
+          <Link
+            to="/about"
+            className={navLinkClass('/about')}
+            onClick={() => setMobileNavOpen(false)}
+          >
+            About
+          </Link>
 
           {user && (
             <Link
-              to="/dashboard"
-              className={navLinkClass('/dashboard')}
+              to="/links"
+              className={navLinkClass('/links')}
               onClick={() => setMobileNavOpen(false)}
             >
-              Dashboard
+              Links
             </Link>
           )}
 
@@ -220,8 +291,11 @@ export function Layout({ children }: Props) {
       </nav>
 
       <ChangePasswordModal open={mobilePwdOpen} onClose={() => setMobilePwdOpen(false)} />
+      {user ? <NotesModal open={notesOpen} onClose={() => setNotesOpen(false)} /> : null}
       <SessionExpiryWatcher />
-      <main className="app-main">{children}</main>
+      <main className={location.pathname === '/' ? 'app-main app-main--dashboard' : 'app-main'}>
+        {children}
+      </main>
       <footer className="app-footer">
         <span>© {new Date().getFullYear()} alrusco</span>
       </footer>

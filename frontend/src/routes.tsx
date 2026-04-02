@@ -1,7 +1,8 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { Layout } from './ui/Layout'
 import { RequireAuth } from './ui/RequireAuth'
-import { HomePage } from './views/HomePage'
+import { DashboardHomePage } from './views/DashboardHomePage'
+import { AboutPage } from './views/AboutPage'
 import { PortfolioPage } from './views/PortfolioPage'
 import { LoginPage } from './views/LoginPage'
 import { DashboardPage } from './views/DashboardPage'
@@ -15,12 +16,21 @@ export function AppRoutes() {
     <BrowserRouter>
       <Layout>
         <Routes>
-          <Route path="/" element={<HomePage />} />
+          <Route path="/" element={<DashboardHomePage />} />
+          <Route path="/about" element={<AboutPage />} />
           <Route path="/projects" element={<ProjectsPage />} />
           <Route path="/photos" element={<PhotosPage />} />
           <Route path="/photos/collection/:kind/:id" element={<PhotosCollectionPage />} />
           <Route path="/portfolio" element={<PortfolioPage />} />
           <Route path="/login" element={<LoginPage />} />
+          <Route
+            path="/links"
+            element={
+              <RequireAuth>
+                <DashboardPage />
+              </RequireAuth>
+            }
+          />
           <Route
             path="/dashboard"
             element={

@@ -38,3 +38,29 @@ export function requireAuth(
   }
 }
 
+/** Sets `req.user` when a valid session cookie is present; otherwise continues without user. */
+export function optionalAuth(req: Request, res: Response, next: NextFunction) {
+  const token = req.cookies?.[COOKIE_NAME];
+  if (!token) {
+    next();
+    return;
+  }
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET, jwtVerifyOptions) as JwtPayload;
+    const payload = decoded as JwtPayload & {
+      sub: number;
+      username: string;
+      stage?: string;
+    };
+    if (payload.stage === "session") {
+      (req as any).user = {
+        id: payload.sub,
+        username: payload.username,
+      };
+    }
+  } catch {
+    /* ignore invalid token */
+  }
+  next();
+}
+

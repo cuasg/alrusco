@@ -96,14 +96,26 @@ Copy [`.env.example`](./.env.example) to `.env` and adjust.
 | `JSON_BODY_LIMIT` | Max JSON body size (default `512kb`) |
 | `GLOBAL_RATE_LIMIT_MAX` | Requests per IP per 15 min for most routes (default `1200`; skips health, `proxy-check`, favicon, `/assets/*` GETs) |
 | `EXTEND_SESSION_RATE_LIMIT_MAX` | Session-extension calls per IP per hour (default `40`) |
+| `APPS_RATE_LIMIT_MAX` | Redirect opens per IP per 10 min for `/apps/:id` (default `120`) |
+| `WEATHER_API_KEY` | OpenWeather API key for Weather widgets/endpoints |
 | `WEATHER_FIXED_LOCATION` | `true` to ignore client `?lat`/`?lon` and use only env coordinates |
+| `WEATHER_LAT`, `WEATHER_LON` | Optional fixed location coordinates for weather |
 | `CSP_DISABLE` | `true` disables Content-Security-Policy (debug only; avoid in production) |
 | `DEBUG_PHOTOS_API` | `true` logs public photos API query details (default off) |
-| `CREDENTIALS_ENCRYPTION_KEY` | 32-byte key (hex or base64) to encrypt GitHub PAT stored from Settings UI |
+| `CREDENTIALS_ENCRYPTION_KEY` | Optional manual 32-byte key (hex or base64). If omitted, server auto-generates and persists one in SQLite settings |
+| `MARKET_PROVIDER` | Market quote source (`alpha_vantage` or `finnhub`) |
+| `ALPHAVANTAGE_API_KEY` | Alpha Vantage API key for Market widget (stock quotes) |
+| `FINNHUB_API_KEY` | Finnhub API key for alternate market quote provider |
+| `MARKET_CACHE_TTL_MS` | Market cache TTL (ms). Default ~5 minutes |
+| `RSS_MIN_REFRESH_MS` | Minimum interval (ms) between RSS refreshes per feed. Default ~10 minutes |
+| `OPENAI_API_KEY` | OpenAI API key for AI Search widget |
+| `OPENAI_MODEL` | OpenAI model name for AI Search (default `gpt-4o-mini`) |
+| `AI_RATE_LIMIT_MAX` | AI requests per IP per 15 minutes (default `30`) |
 | `PORT` | HTTP port (default `3077`) |
 | `TRUST_PROXY_HOPS` | Set when behind a reverse proxy (default `1`) |
 | `GITHUB_TOKEN`, `GITHUB_USERNAME`, `GITHUB_ORG` | Optional overrides for GitHub sync (else use Settings UI) |
 | `GITHUB_SYNC_EXCLUDE_FORKS`, `GITHUB_SYNC_EXCLUDE_ARCHIVED` | Optional (`false` to include) |
+| `GITHUB_API_USER_AGENT` | Optional GitHub API User-Agent string override |
 
 Never commit `.env` — it is listed in `.gitignore`.
 
@@ -145,7 +157,7 @@ If you terminate TLS in Nginx, Caddy, or Nginx Proxy Manager, point traffic to t
 - **Secrets:** Strong `JWT_SECRET`; `CREDENTIALS_ENCRYPTION_KEY` if you store a GitHub PAT in Settings; never commit `.env`.
 - **Bootstrap:** Keep `ALLOW_BOOTSTRAP` unset except for the very first admin user on a new deploy.
 - **Env admin init:** If you use `ADMIN_USERNAME`/`ADMIN_PASSWORD` with `ALLOW_ADMIN_ENV_INIT=true`, set it back to `false` after setup (and keep `ALLOW_BOOTSTRAP` unset).
-- **Headers:** Helmet is enabled with a **Content-Security-Policy** tuned for this SPA (same-origin scripts/assets, WebGL Earth + OSM tiles, dashboard Simple Icons CDN, and **Google Analytics domains** that WebGL Earth’s script loads, `blob:`/`data:` where needed). Set **`CSP_DISABLE=true`** only if you must debug a blocked resource. Optionally set **`ENABLE_HSTS=true`** once HTTPS is correct end-to-end.
+- **Headers:** Helmet is enabled with a **Content-Security-Policy** tuned for this SPA (same-origin scripts/assets, `wasm-unsafe-eval` for Lottie, **`img-src` includes `https:`** so RSS thumbnails from arbitrary publisher CDNs load, plus `data:`/`blob:` where needed). Set **`CSP_DISABLE=true`** only if you must debug a blocked resource. Optionally set **`ENABLE_HSTS=true`** once HTTPS is correct end-to-end.
 - **Rich text:** User-editable HTML (projects body, descriptions, home copy) is sanitized with **sanitize-html** (allow-list tags/attributes; safe link schemes).
 - **Uploads:** JPEG/PNG/WebP/GIF/HEIC only; content is checked with **sharp** (blocks mismatched / hostile types such as SVG-as-image).
 - **Weather:** Use **`WEATHER_FIXED_LOCATION=true`** so anonymous clients can’t pick arbitrary coordinates for your API key.

@@ -109,6 +109,20 @@ export async function initUserStore() {
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS rss_cache (
+      url TEXT PRIMARY KEY,
+      fetched_at TEXT NOT NULL,
+      etag TEXT,
+      last_modified TEXT,
+      payload_json TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS market_cache (
+      cache_key TEXT PRIMARY KEY,
+      fetched_at TEXT NOT NULL,
+      payload_json TEXT NOT NULL
+    );
   `);
 
   // Lightweight migration: ensure photos table has original_url column for full-resolution paths

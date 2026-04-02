@@ -8,11 +8,12 @@ const AUTH_TAG_LENGTH = 16;
 const KEY_OWNER = "integration_github_owner";
 const KEY_OWNER_KIND = "integration_github_owner_kind";
 const KEY_TOKEN_ENC = "integration_github_token_enc";
+const KEY_AUTO_ENCRYPTION_KEY = "system_credentials_encryption_key";
 
 export type GithubOwnerKind = "user" | "org";
 
-function parseKeyMaterial(): Buffer {
-  const raw = process.env.CREDENTIALS_ENCRYPTION_KEY?.trim();
+function parseKeyMaterialRaw(rawIn: string | undefined): Buffer {
+  const raw = rawIn?.trim();
   if (!raw) {
     throw new Error("CREDENTIALS_ENCRYPTION_KEY is not set");
   }
@@ -26,6 +27,10 @@ function parseKeyMaterial(): Buffer {
     );
   }
   return b;
+}
+
+function parseKeyMaterial(): Buffer {
+  return parseKeyMaterialRaw(process.env.CREDENTIALS_ENCRYPTION_KEY);
 }
 
 export function encryptSecret(plaintext: string): string {
@@ -79,6 +84,37 @@ async function setSetting(key: string, value: string): Promise<void> {
 async function deleteSetting(key: string): Promise<void> {
   const db = await getDb();
   await db.run("DELETE FROM settings WHERE key = ?", key);
+}
+
+export async function ensureEncryptionKeyConfigured(): Promise<void> {
+  try {
+    parseKeyMaterial();
+    const envKey = process.env.CREDENTIALS_ENCRYPTION_KEY?.trim();
+    if (envKey) {
+      const fromDb = await getSetting(KEY_AUTO_ENCRYPTION_KEY);
+      if (!fromDb) {
+        await setSetting(KEY_AUTO_ENCRYPTION_KEY, envKey);
+      }
+    }
+    return;
+  } catch {
+    // Continue and try DB-backed/generated key.
+  }
+
+  const fromDb = await getSetting(KEY_AUTO_ENCRYPTION_KEY);
+  if (fromDb) {
+    try {
+      parseKeyMaterialRaw(fromDb);
+      process.env.CREDENTIALS_ENCRYPTION_KEY = fromDb;
+      return;
+    } catch {
+      // Invalid DB value; replace below.
+    }
+  }
+
+  const generated = crypto.randomBytes(32).toString("hex");
+  await setSetting(KEY_AUTO_ENCRYPTION_KEY, generated);
+  process.env.CREDENTIALS_ENCRYPTION_KEY = generated;
 }
 
 export async function getStoredGithubIntegration(): Promise<{
@@ -176,6 +212,8 @@ export type GithubIntegrationPut = {
 export async function saveGithubIntegration(
   body: GithubIntegrationPut,
 ): Promise<void> {
+  await ensureEncryptionKeyConfigured();
+
   if (body.owner !== undefined) {
     const o = typeof body.owner === "string" ? body.owner.trim() : "";
     if (o) {
