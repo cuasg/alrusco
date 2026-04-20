@@ -10,6 +10,7 @@ import { ProjectsPage } from './views/ProjectsPage'
 import { PhotosPage } from './views/PhotosPage'
 import { PhotosCollectionPage } from './views/PhotosCollectionPage'
 import { SettingsPage } from './views/SettingsPage'
+import { UsCommodityTrackerPage } from './views/UsCommodityTrackerPage'
 
 export function AppRoutes() {
   return (
@@ -17,6 +18,7 @@ export function AppRoutes() {
       <Layout>
         <Routes>
           <Route path="/" element={<DashboardHomePage />} />
+          <Route path="/us-commodities" element={<UsCommodityTrackerPage />} />
           <Route path="/about" element={<AboutPage />} />
           <Route path="/projects" element={<ProjectsPage />} />
           <Route path="/photos" element={<PhotosPage />} />

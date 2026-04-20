@@ -85,6 +85,10 @@ export function RssWidget({ editMode, isAuthenticated }: WidgetRenderProps) {
   }, [])
 
   const refreshBookmarks = useCallback(async () => {
+    if (!isAuthenticated) {
+      setBookmarks(new Set())
+      return
+    }
     try {
       const res = await fetch('/api/admin/rss/bookmarks', { credentials: 'include' })
       if (!res.ok) {
@@ -102,7 +106,7 @@ export function RssWidget({ editMode, isAuthenticated }: WidgetRenderProps) {
     } catch {
       setBookmarks(new Set())
     }
-  }, [])
+  }, [isAuthenticated])
 
   /** Items in scope for tag chips (per tab / feed — not yet filtered by selected tag). */
   const itemsForTagScope = useMemo(() => {
@@ -190,13 +194,17 @@ export function RssWidget({ editMode, isAuthenticated }: WidgetRenderProps) {
 
   useEffect(() => {
     void refreshBookmarks()
-  }, [refreshBookmarks])
+  }, [refreshBookmarks, isAuthenticated])
 
   useEffect(() => {
     if (tab === 'saved') void refreshBookmarks()
   }, [tab, refreshBookmarks])
 
   useEffect(() => {
+    if (!isAuthenticated) {
+      setFeeds(null)
+      return
+    }
     let cancelled = false
     async function loadFeeds() {
       try {
@@ -212,7 +220,7 @@ export function RssWidget({ editMode, isAuthenticated }: WidgetRenderProps) {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [isAuthenticated])
 
   useEffect(() => {
     if (!feeds) return

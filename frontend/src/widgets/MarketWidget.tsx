@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { WidgetRenderProps } from '../dashboard/WidgetRegistry'
+import { isUsRegularSessionOpen } from '../lib/marketSession'
+import {
+  readMarketWatchlistFromStorage,
+  writeMarketWatchlistLocal,
+} from '../lib/marketWatchlist'
+import { MarketWidgetCommodities } from './MarketWidgetCommodities'
 
 type MarketDiagnostics = {
   effectiveQuoteProvider: 'alpha_vantage' | 'finnhub'
@@ -34,50 +40,6 @@ const STOCK_PRESETS = [
   'TSLA',
   'XOM',
 ]
-
-const LS_MARKET_WATCHLIST = 'alrusco.market.watchlist.v1'
-
-function readLocalWatchTickers(): string[] | null {
-  try {
-    const raw = localStorage.getItem(LS_MARKET_WATCHLIST)
-    if (!raw) return null
-    const p = JSON.parse(raw) as unknown
-    if (!Array.isArray(p)) return null
-    const t = p
-      .filter((x) => typeof x === 'string')
-      .map((x) => String(x).trim().toUpperCase())
-      .filter(Boolean)
-    return t.length ? t : null
-  } catch {
-    return null
-  }
-}
-
-function writeLocalWatchTickers(tickers: string[]) {
-  try {
-    localStorage.setItem(LS_MARKET_WATCHLIST, JSON.stringify(tickers.slice(0, 30)))
-  } catch {
-    /* ignore */
-  }
-}
-
-/** NYSE regular session (Mon–Fri, 09:30–16:00 America/New_York). */
-function isUsRegularSessionOpen(now = Date.now()): boolean {
-  const d = new Date(now)
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'America/New_York',
-    hour: 'numeric',
-    minute: 'numeric',
-    hour12: false,
-    weekday: 'short',
-  }).formatToParts(d)
-  const weekday = parts.find((p) => p.type === 'weekday')?.value
-  const hour = Number(parts.find((p) => p.type === 'hour')?.value ?? 0)
-  const minute = Number(parts.find((p) => p.type === 'minute')?.value ?? 0)
-  if (weekday === 'Sat' || weekday === 'Sun') return false
-  const mins = hour * 60 + minute
-  return mins >= 9 * 60 + 30 && mins < 16 * 60
-}
 
 function formatUsd(n: number) {
   return n.toLocaleString(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 2 })
@@ -113,7 +75,7 @@ export function MarketWidget({ editMode, isAuthenticated, layoutVariant = 'grid'
       })
       if (res.ok) {
         setTickers(next)
-        writeLocalWatchTickers(next)
+        writeMarketWatchlistLocal(next)
       }
     } finally {
       setSaving(false)
@@ -195,22 +157,28 @@ export function MarketWidget({ editMode, isAuthenticated, layoutVariant = 'grid'
         setLoading(true)
         setError(null)
 
+        if (!isAuthenticated) {
+          const local = readMarketWatchlistFromStorage()
+          if (!cancelled && local?.length) setTickers(local)
+          return
+        }
+
         const watchRes = await fetch('/api/market/watchlist', { credentials: 'include' })
 
         if (watchRes.ok) {
           const data = (await watchRes.json()) as { tickers?: string[] }
           if (!cancelled && data.tickers?.length) {
             setTickers(data.tickers)
-            writeLocalWatchTickers(data.tickers)
+            writeMarketWatchlistLocal(data.tickers)
           }
         } else {
-          const local = readLocalWatchTickers()
+          const local = readMarketWatchlistFromStorage()
           if (!cancelled && local?.length) setTickers(local)
         }
       } catch {
         if (!cancelled) {
           setError('Failed to load market data.')
-          const lt = readLocalWatchTickers()
+          const lt = readMarketWatchlistFromStorage()
           if (lt?.length) setTickers(lt)
         }
       } finally {
@@ -574,6 +542,8 @@ export function MarketWidget({ editMode, isAuthenticated, layoutVariant = 'grid'
           )
         })}
       </div>
+
+      <MarketWidgetCommodities refreshNonce={refreshNonce} dock={layoutVariant === 'dock'} />
     </div>
   )
 }

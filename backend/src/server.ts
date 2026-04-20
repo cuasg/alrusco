@@ -2,10 +2,13 @@ import express, { type Request } from "express";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import cookieParser from "cookie-parser";
+import type { Server } from "http";
+import type { NextFunction, Response } from "express";
 import path from "path";
 import fs from "fs";
 import bcrypt from "bcrypt";
 import publicRoutes from "./routes/public";
+import commodityPublicRoutes from "./routes/commodityPublic";
 import appsRoutes from "./routes/apps";
 import { getDb, getUserCount, initUserStore } from "./auth/userStore";
 import authRoutes from "./auth/authRoutes";
@@ -39,6 +42,13 @@ const app = express();
 const PORT = process.env.PORT || 3077;
 const isProd = process.env.NODE_ENV === "production";
 
+function envInt(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (!raw) return fallback;
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 0 ? n : fallback;
+}
+
 // When running behind a reverse proxy (e.g., Nginx Proxy Manager), Express must trust the proxy
 // so req.ip / express-rate-limit can safely use X-Forwarded-For.
 // Using `1` means "trust the first proxy hop", which is typical for single NPM instances.
@@ -61,15 +71,20 @@ app.use(
           directives: {
             defaultSrc: ["'self'"],
             // wasm-unsafe-eval: required for @lottiefiles/dotlottie-web (WASM player), without full unsafe-eval.
-            scriptSrc: ["'self'", "'wasm-unsafe-eval'"],
-            styleSrc: ["'self'", "'unsafe-inline'"],
+            scriptSrc: ["'self'", "'wasm-unsafe-eval'", "https://unpkg.com"],
+            styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
             // RSS cards and other embeds load thumbnails from arbitrary publisher/CDN hosts (`https:`).
             imgSrc: ["'self'", "https:", "data:", "blob:"],
-            connectSrc: ["'self'", "https://lottie.host"],
-            fontSrc: ["'self'"],
+            connectSrc: [
+              "'self'",
+              "https://lottie.host",
+              // Commodity tracker uses same-origin /api/public/commodities/* (server proxies Yahoo + metals.live).
+            ],
+            fontSrc: ["'self'", "https://fonts.gstatic.com"],
             objectSrc: ["'none'"],
             baseUri: ["'self'"],
-            frameAncestors: ["'none'"],
+            // Allow same-origin embedding (e.g. /us-commodities iframes /us-commodity-tracker/*). 'none' blocks that.
+            frameAncestors: ["'self'"],
             workerSrc: ["'self'", "blob:"],
             manifestSrc: ["'self'"],
           },
@@ -85,6 +100,28 @@ app.use(
   }),
 );
 
+// Lock down browser capabilities we don't use.
+// This is safe for a typical SPA and helps reduce XSS blast radius.
+app.use((_req, res, next) => {
+  res.setHeader(
+    "Permissions-Policy",
+    [
+      "accelerometer=()",
+      "camera=()",
+      "display-capture=()",
+      // Allow browser geolocation for same-origin weather-by-location mode.
+      "geolocation=(self)",
+      "gyroscope=()",
+      "magnetometer=()",
+      "microphone=()",
+      "midi=()",
+      "payment=()",
+      "usb=()",
+    ].join(", "),
+  );
+  next();
+});
+
 function shouldSkipGlobalRateLimit(req: Request): boolean {
   const p = req.path;
   if (p === "/api/health" || p === "/api/auth/proxy-check") {
@@ -96,6 +133,10 @@ function shouldSkipGlobalRateLimit(req: Request): boolean {
       return true;
     }
     if (p.startsWith("/assets/")) {
+      return true;
+    }
+    // Commodity tracker polls ~every 10s; don't burn the global budget on Yahoo proxy fan-out.
+    if (p.startsWith("/api/public/commodities")) {
       return true;
     }
   }
@@ -127,6 +168,7 @@ app.get("/api/health", (_req, res) => {
 });
 
 app.use("/api/public", publicRoutes);
+app.use("/api/public/commodities", commodityPublicRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/weather", weatherRoutes);
 app.use("/api/projects", projectsRoutes);
@@ -185,6 +227,38 @@ if (fs.existsSync(distPath)) {
     res.sendFile(path.join(distPath, "index.html"));
   });
 }
+
+app.use(
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  (err: unknown, req: Request, res: Response, next: NextFunction) => {
+    // eslint-disable-next-line no-console
+    console.error("[error]", err);
+
+    if (res.headersSent) {
+      next(err);
+      return;
+    }
+
+    const status =
+      typeof (err as any)?.status === "number"
+        ? (err as any).status
+        : typeof (err as any)?.statusCode === "number"
+          ? (err as any).statusCode
+          : 500;
+
+    if (req.path.startsWith("/api/")) {
+      res.status(status).json({ error: status >= 500 ? "internal error" : "error" });
+      return;
+    }
+
+    if (isProd) {
+      res.status(status).send("Internal Server Error");
+      return;
+    }
+
+    res.status(status).send(String((err as any)?.stack ?? err));
+  },
+);
 
 async function start() {
   assertProductionSecurity();
@@ -270,9 +344,15 @@ async function start() {
     }
   }
 
-  app.listen(PORT, () => {
+  const server: Server = app.listen(PORT, () => {
     console.log(`Server listening on port ${PORT}`);
   });
+
+  // Basic HTTP hardening: avoid infinite idle connections.
+  // Defaults are intentionally generous to avoid impacting uploads / slow clients.
+  server.requestTimeout = envInt("HTTP_REQUEST_TIMEOUT_MS", 15 * 60 * 1000);
+  server.headersTimeout = envInt("HTTP_HEADERS_TIMEOUT_MS", 70 * 1000);
+  server.keepAliveTimeout = envInt("HTTP_KEEP_ALIVE_TIMEOUT_MS", 65 * 1000);
 }
 
 start().catch((err) => {

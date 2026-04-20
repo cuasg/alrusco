@@ -2020,6 +2020,99 @@ body {
   grid-template-columns: minmax(2rem, 1fr) minmax(4.5rem, max-content) minmax(3.25rem, max-content);
 }
 
+/* Compact commodity strip (same data as /us-commodities) */
+.market-widget__commodities {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-hairline);
+  min-width: 0;
+}
+
+.market-commodity-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.market-commodity-head__link {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--link-sky);
+  text-decoration: none;
+}
+
+.market-commodity-head__link:hover {
+  text-decoration: underline;
+}
+
+.market-commodity-head__meta {
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.market-commodity-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.market-commodity-row {
+  display: grid;
+  grid-template-columns: minmax(3.25rem, 1fr) minmax(4.5rem, max-content) minmax(3.25rem, max-content);
+  align-items: baseline;
+  gap: 6px 10px;
+  font-variant-numeric: tabular-nums;
+  min-width: 0;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.market-commodity-row__name {
+  font-weight: 600;
+  color: var(--text-secondary);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.market-commodity-row__price {
+  text-align: right;
+  justify-self: end;
+  font-weight: 600;
+  font-size: 11px;
+}
+
+.market-commodity-row__suffix {
+  font-size: 8px;
+  font-weight: 700;
+  color: var(--text-muted);
+  margin-left: 2px;
+  vertical-align: super;
+}
+
+.market-commodity-row__pct {
+  text-align: right;
+  justify-self: end;
+  font-weight: 600;
+  font-size: 11px;
+}
+
+.market-widget__commodities--dock .market-commodity-row {
+  gap: 4px 8px;
+  grid-template-columns: minmax(2.75rem, 1fr) minmax(4rem, max-content) minmax(3rem, max-content);
+  font-size: 10px;
+}
+
+.market-widget__commodities--dock .market-commodity-row__price,
+.market-widget__commodities--dock .market-commodity-row__pct {
+  font-size: 10px;
+}
+
 .rss-empty {
   margin-top: 12px;
   padding: 14px;
@@ -2143,6 +2236,15 @@ body {
   font-size: 18px;
   color: var(--text-muted);
   max-width: 540px;
+}
+
+.us-commodities-page {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  width: 100%;
+  max-width: 100%;
 }
 
 /* -------------------------------------------------------------------------- */

@@ -5,7 +5,7 @@ import jwt, { JwtPayload } from "jsonwebtoken";
 import { generateSecret, generateURI, verify } from "otplib";
 import rateLimit from "express-rate-limit";
 import { getUserCount, getDb } from "./userStore";
-import { requireAuth } from "./authMiddleware";
+import { optionalAuth, requireAuth } from "./authMiddleware";
 import {
   getAdminCredentialResetSecret,
   isBootstrapAllowed,
@@ -359,11 +359,12 @@ router.post("/verify-totp", authAttemptLimiter, async (req, res) => {
   }
 });
 
-router.get("/me", requireAuth, (req, res) => {
-  const user = (req as any).user;
+/** 200 + `{ user: null }` when logged out — avoids noisy 401s in the browser Network panel. */
+router.get("/me", optionalAuth, (req, res) => {
+  const user = (req as any).user ?? null;
   const token = req.cookies?.[COOKIE_NAME];
   const sessionExpiresAt =
-    typeof token === "string" ? sessionExpiresAtFromToken(token) : null;
+    user && typeof token === "string" ? sessionExpiresAtFromToken(token) : null;
   res.json({ user, sessionExpiresAt });
 });
 

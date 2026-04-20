@@ -82,6 +82,9 @@ export function Layout({ children }: Props) {
             <Link to="/" className={navLinkClass('/')}>
               Home
             </Link>
+            <Link to="/us-commodities" className={navLinkClass('/us-commodities')}>
+              US Commodities
+            </Link>
             <Link to="/portfolio" className={navLinkClass('/portfolio')}>
               Portfolio
             </Link>
@@ -211,6 +214,13 @@ export function Layout({ children }: Props) {
             Home
           </Link>
           <Link
+            to="/us-commodities"
+            className={navLinkClass('/us-commodities')}
+            onClick={() => setMobileNavOpen(false)}
+          >
+            US Commodities
+          </Link>
+          <Link
             to="/portfolio"
             className={navLinkClass('/portfolio')}
             onClick={() => setMobileNavOpen(false)}
@@ -293,7 +303,13 @@ export function Layout({ children }: Props) {
       <ChangePasswordModal open={mobilePwdOpen} onClose={() => setMobilePwdOpen(false)} />
       {user ? <NotesModal open={notesOpen} onClose={() => setNotesOpen(false)} /> : null}
       <SessionExpiryWatcher />
-      <main className={location.pathname === '/' ? 'app-main app-main--dashboard' : 'app-main'}>
+      <main
+        className={
+          location.pathname === '/' || location.pathname === '/us-commodities'
+            ? 'app-main app-main--dashboard'
+            : 'app-main'
+        }
+      >
         {children}
       </main>
       <footer className="app-footer">
